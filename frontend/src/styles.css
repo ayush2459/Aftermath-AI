@@ -421,3 +421,76 @@
     margin-left: 40px;
   }
 }
+
+
+/* Products displayed inside each shipment order card */
+.shipment-products {
+  margin-top: 20px;
+  padding: 17px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 9px;
+  background: rgba(255,255,255,.025);
+}
+.shipment-products-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.shipment-product-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.shipment-product-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,.07);
+}
+.shipment-product-thumb {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: rgba(196,243,107,.1);
+  color: var(--lime);
+}
+.shipment-product-name {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.shipment-product-name b {
+  color: #f3f5f9;
+  font-size: 12px;
+}
+.shipment-product-name small {
+  color: #78869d;
+  font-size: 9px;
+  overflow-wrap: anywhere;
+}
+.shipment-product-qty {
+  color: #a3adbf;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.shipment-product-row strong {
+  color: #f3f5f9;
+  font-size: 11px;
+  white-space: nowrap;
+}
+@media (max-width: 520px) {
+  .shipment-products { padding: 13px; }
+  .shipment-product-row { gap: 8px; }
+  .shipment-product-thumb { width: 36px; height: 36px; flex-basis: 36px; }
+  .shipment-product-name b { font-size: 11px; }
+  .shipment-product-row strong { font-size: 10px; }
+}
