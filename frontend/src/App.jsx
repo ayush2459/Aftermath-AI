@@ -10,7 +10,8 @@ const productImage = (product) => {
   const path = product.product_id === "aurora-headphones"
     ? "/static/products/aurora-headphones.jpg"
     : (product.image_url || "");
-  const url = /^https?:\\/\\//i.test(path) ? path : `${API}${path.startsWith("/") ? path : `/${path}`}`;
+  const isAbsolute = path.startsWith("http://") || path.startsWith("https://");
+  const url = isAbsolute ? path : `${API}${path.startsWith("/") ? path : `/${path}`}`;
   return `${url}${url.includes("?") ? "&" : "?"}v=20261030-2`;
 };
 
