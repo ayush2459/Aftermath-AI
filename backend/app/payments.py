@@ -48,6 +48,7 @@ def create_razorpay_order(payload: OrderCreateIn, db: Session = Depends(get_db))
     for pid, qty in requested.items():
         if products[pid]["stock_quantity"] < qty:
             raise HTTPException(status_code=409, detail=f"Insufficient stock for {pid}")
+    db.rollback()  # End the read transaction before creating the remote Razorpay order.
 
     total_paise = sum(products[pid]["price_paise"] * qty for pid, qty in requested.items())
     local_order_id = uuid4()
@@ -113,6 +114,7 @@ def verify_razorpay_payment(payload: VerifyPaymentIn, db: Session = Depends(get_
                 "message": "Payment was already verified."}
     if payment["status"] != "pending":
         raise HTTPException(status_code=409, detail="This payment is not pending.")
+    db.commit()  # Release the read transaction while the signature and provider status are checked.
 
     try:
         client.utility.verify_payment_signature({
@@ -136,6 +138,17 @@ def verify_razorpay_payment(payload: VerifyPaymentIn, db: Session = Depends(get_
     incident_id, correlation_id = uuid4(), uuid4()
     try:
         with db.begin():
+            # Re-lock and re-check the payment to make verification idempotent under concurrent callbacks.
+            locked_payment = db.execute(text("""
+                SELECT status, razorpay_order_id FROM payments WHERE order_id=:oid FOR UPDATE
+            """), {"oid": payload.order_id}).mappings().first()
+            if not locked_payment or locked_payment["razorpay_order_id"] != payload.razorpay_order_id:
+                raise HTTPException(status_code=409, detail="Payment order changed during verification.")
+            if locked_payment["status"] == "captured":
+                return {"verified": True, "status": "captured", "order_id": str(payload.order_id),
+                        "message": "Payment was already verified."}
+            if locked_payment["status"] != "pending":
+                raise HTTPException(status_code=409, detail="This payment is no longer pending.")
             # Lock inventory and re-check stock after the customer completes checkout.
             items = db.execute(text("""
                 SELECT oi.product_id, oi.quantity, oi.unit_price_paise, p.stock_quantity
