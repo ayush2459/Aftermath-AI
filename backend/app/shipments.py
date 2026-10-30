@@ -90,10 +90,10 @@ def get_shipment_timeline(
                 message,
                 payload,
                 correlation_id,
-                occurred_at
+                created_at AS occurred_at
             FROM events
             WHERE order_id = :order_id
-            ORDER BY occurred_at ASC, event_id ASC
+            ORDER BY created_at ASC, event_id ASC
         """),
         {"order_id": order_id},
     ).mappings().all()
@@ -186,7 +186,7 @@ def get_shipment_issues(
                 severity,
                 message,
                 payload,
-                occurred_at
+                created_at AS occurred_at
             FROM events
             WHERE order_id = :order_id
               AND (
@@ -195,7 +195,7 @@ def get_shipment_issues(
                     OR LOWER(event_type) LIKE '%delay%'
                     OR LOWER(event_type) LIKE '%exception%'
               )
-            ORDER BY occurred_at DESC, event_id DESC
+            ORDER BY created_at DESC, event_id DESC
         """),
         {"order_id": order_id},
     ).mappings().all()
@@ -232,3 +232,68 @@ def get_shipment_issues(
         ),
         "issues": issues,
     }
+
+
+@router.get("/list_shipments")
+def list_shipments(db: Session = Depends(get_db)):
+    """Return recent orders with shipment and incident information."""
+
+    rows = db.execute(
+        text("""
+            SELECT
+                o.order_id,
+                o.status AS order_status,
+                o.total_paise,
+                o.created_at AS order_created_at,
+
+                s.shipment_id,
+                s.status AS shipment_status,
+                s.carrier_name,
+                s.carrier_code,
+                s.tracking_number,
+                s.current_location,
+                s.estimated_delivery_at,
+                s.last_error,
+                s.updated_at AS shipment_updated_at,
+
+                i.incident_id,
+                i.status AS incident_status,
+                i.severity AS incident_severity,
+                i.title AS incident_title,
+                i.summary AS incident_summary,
+
+                latest.event_type AS latest_event_type,
+                latest.message AS latest_event_message,
+                latest.severity AS latest_event_severity,
+                latest.created_at AS latest_event_at
+
+            FROM orders o
+
+            LEFT JOIN shipments s
+                ON s.order_id = o.order_id
+
+            LEFT JOIN incidents i
+                ON i.order_id = o.order_id
+
+            LEFT JOIN LATERAL (
+                SELECT
+                    event_type,
+                    message,
+                    severity,
+                    created_at
+                FROM events e
+                WHERE e.order_id = o.order_id
+                ORDER BY e.created_at DESC, e.event_id DESC
+                LIMIT 1
+            ) latest ON TRUE
+
+            ORDER BY o.created_at DESC
+            LIMIT 100
+        """)
+    ).mappings().all()
+
+    return {
+        "count": len(rows),
+        "shipments": [dict(row) for row in rows],
+    }
+
