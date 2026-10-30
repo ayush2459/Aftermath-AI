@@ -6,6 +6,7 @@ import {
   CircleHelp,
   Headphones,
   LockKeyhole,
+  MessageCircle,
   Minus,
   Plus,
   ShieldCheck,
@@ -1011,6 +1012,26 @@ function App() {
                           </small>
                         </div>
                       )}
+                    </div>
+
+                    <div className="discord-help-card">
+                      <div className="discord-help-icon">
+                        <MessageCircle size={21} />
+                      </div>
+                      <div className="discord-help-copy">
+                        <span className="eyebrow">NEED HELP WITH THIS SHIPMENT?</span>
+                        <b>Resolve this issue with our Aftermath AI bot.</b>
+                        <p>Join our Discord community for help investigating shipment failures and guidance on the next recovery steps.</p>
+                      </div>
+                      <a
+                        className="discord-help-button"
+                        href="https://discord.gg/Az3StcNU7"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Open Aftermath AI on Discord
+                        <ArrowRight size={15} />
+                      </a>
                     </div>
 
                     <div className="shipment-footer">
