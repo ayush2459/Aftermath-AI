@@ -773,6 +773,49 @@ function App() {
                       </span>
                     </div>
 
+                    <div className="shipment-products">
+                      <div className="shipment-products-heading">
+                        <span className="eyebrow">ORDERED PRODUCTS</span>
+                        <span className="timeline-count">
+                          {(shipment.ordered_products || []).reduce(
+                            (sum, product) => sum + product.quantity,
+                            0
+                          )} ITEMS
+                        </span>
+                      </div>
+
+                      {(shipment.ordered_products || []).length > 0 ? (
+                        <div className="shipment-product-list">
+                          {shipment.ordered_products.map((product) => (
+                            <div
+                              className="shipment-product-row"
+                              key={product.product_id}
+                            >
+                              <div className="shipment-product-thumb">
+                                {product.product_id === "aurora-headphones" ? (
+                                  <Headphones size={20} />
+                                ) : (
+                                  <ShoppingBag size={20} />
+                                )}
+                              </div>
+                              <div className="shipment-product-name">
+                                <b>{product.product_name}</b>
+                                <small>SKU: {product.product_id}</small>
+                              </div>
+                              <span className="shipment-product-qty">
+                                Qty {product.quantity}
+                              </span>
+                              <strong>{money(product.line_total_paise)}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="timeline-empty">
+                          Product details are unavailable for this order.
+                        </p>
+                      )}
+                    </div>
+
                     <div className="shipment-metrics">
                       <div>
                         <small>ORDER STATUS</small>
