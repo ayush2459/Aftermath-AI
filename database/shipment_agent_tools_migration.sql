@@ -7,5 +7,6 @@ ALTER TABLE shipments ADD COLUMN IF NOT EXISTS tracking_number TEXT;
 ALTER TABLE shipments ADD COLUMN IF NOT EXISTS current_location TEXT;
 ALTER TABLE shipments ADD COLUMN IF NOT EXISTS estimated_delivery_at TIMESTAMPTZ;
 
-CREATE INDEX IF NOT EXISTS idx_events_order_timeline
-  ON events(order_id, created_at ASC);
+-- Existing databases may use occurred_at/received_at instead of created_at.
+-- The order timeline index already exists in the user's schema as
+-- idx_events_order_occurred (order_id, occurred_at), so no extra index is needed.
