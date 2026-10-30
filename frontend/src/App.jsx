@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Check, ChevronDown, CircleHelp, CreditCard, Headphones, LockKeyhole, Minus, Plus, ShieldCheck, ShoppingBag, Sparkles, Truck, X } from "lucide-react";
+import { loadCheckout } from "./checkout.js";
 
 const API = (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 const money = (paise) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format((paise || 0) / 100);
@@ -46,19 +47,6 @@ function App() {
     const value = (next[id] || 0) + delta;
     if (value <= 0) delete next[id]; else next[id] = Math.min(value, 25);
     return next;
-  });
-
-  const loadCheckout = () => new Promise((resolve, reject) => {
-    if (window.Razorpay) return resolve();
-    const existing = document.querySelector('script[data-razorpay-checkout]');
-    if (existing) { existing.addEventListener("load", resolve, { once: true }); existing.addEventListener("error", reject, { once: true }); return; }
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.async = true;
-    script.dataset.razorpayCheckout = "true";
-    script.onload = resolve;
-    script.onerror = () => reject(new Error("Razorpay Checkout could not be loaded. Check your internet connection."));
-    document.body.appendChild(script);
   });
 
   const startPayment = async () => {
@@ -176,3 +164,4 @@ function App() {
 }
 
 export default App;
+
