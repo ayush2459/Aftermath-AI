@@ -4,9 +4,23 @@
 -- Safe to re-run: DDL is guarded with IF NOT EXISTS / catalog checks.
 BEGIN;
 
--- The API reads occurred_at, while the original bootstrap schema only had created_at.
+-- The API reads occurred_at. Existing databases may already have it, while fresh
+-- bootstrap databases may still have created_at. Preserve existing timestamps and
+-- only use created_at (or NOW as a final fallback) for rows missing occurred_at.
 ALTER TABLE events ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ;
-UPDATE events SET occurred_at = created_at WHERE occurred_at IS NULL;
+DO $
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'events'
+      AND column_name = 'created_at'
+  ) THEN
+    EXECUTE 'UPDATE events SET occurred_at = COALESCE(occurred_at, created_at, NOW()) WHERE occurred_at IS NULL';
+  ELSE
+    UPDATE events SET occurred_at = NOW() WHERE occurred_at IS NULL;
+  END IF;
+END $;
 ALTER TABLE events ALTER COLUMN occurred_at SET DEFAULT NOW();
 ALTER TABLE events ALTER COLUMN occurred_at SET NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_events_order_occurred ON events(order_id, occurred_at ASC, event_id ASC);
