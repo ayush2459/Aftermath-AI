@@ -245,6 +245,7 @@ def list_shipments(db: Session = Depends(get_db)):
                 o.status AS order_status,
                 o.total_paise,
                 o.created_at AS order_created_at,
+                COALESCE(ordered_items.products, '[]'::json) AS ordered_products,
 
                 s.shipment_id,
                 s.status AS shipment_status,
@@ -274,6 +275,22 @@ def list_shipments(db: Session = Depends(get_db)):
 
             LEFT JOIN incidents i
                 ON i.order_id = o.order_id
+
+            LEFT JOIN LATERAL (
+                SELECT json_agg(
+                    json_build_object(
+                        'product_id', p.product_id,
+                        'product_name', p.name,
+                        'quantity', oi.quantity,
+                        'unit_price_paise', oi.unit_price_paise,
+                        'line_total_paise', oi.quantity * oi.unit_price_paise
+                    )
+                    ORDER BY p.name
+                ) AS products
+                FROM order_items oi
+                JOIN products p ON p.product_id = oi.product_id
+                WHERE oi.order_id = o.order_id
+            ) ordered_items ON TRUE
 
             LEFT JOIN LATERAL (
                 SELECT
