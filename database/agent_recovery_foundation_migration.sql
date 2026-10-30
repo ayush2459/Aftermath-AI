@@ -45,9 +45,14 @@ ALTER TABLE approvals ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
 ALTER TABLE approvals ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_approvals_idempotency_key
   ON approvals(idempotency_key) WHERE idempotency_key IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_approvals_plan_status ON approvals(plan_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_approvals_plan_status ON approvals(plan_id, status);
 
 -- Recovery execution lifecycle and provider correlation.
+ALTER TABLE recovery_actions ADD COLUMN IF NOT EXISTS incident_id UUID REFERENCES incidents(incident_id) ON DELETE CASCADE;
+UPDATE recovery_actions AS ra
+SET incident_id = rp.incident_id
+FROM recovery_plans AS rp
+WHERE ra.plan_id = rp.plan_id AND ra.incident_id IS NULL;
 ALTER TABLE recovery_actions ADD COLUMN IF NOT EXISTS attempt_number INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE recovery_actions ADD COLUMN IF NOT EXISTS requested_by TEXT;
 ALTER TABLE recovery_actions ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ;
@@ -56,7 +61,7 @@ ALTER TABLE recovery_actions ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
 ALTER TABLE recovery_actions ADD COLUMN IF NOT EXISTS error_code TEXT;
 ALTER TABLE recovery_actions ADD COLUMN IF NOT EXISTS external_reference TEXT;
 CREATE INDEX IF NOT EXISTS idx_recovery_actions_incident_created ON recovery_actions(incident_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_recovery_actions_status ON recovery_actions(status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_recovery_actions_status ON recovery_actions(status, created_at DESC);
 
 -- One durable record per agent investigation/recovery run.
 CREATE TABLE IF NOT EXISTS agent_runs (
