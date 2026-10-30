@@ -8,7 +8,7 @@ BEGIN;
 -- bootstrap databases may still have created_at. Preserve existing timestamps and
 -- only use created_at (or NOW as a final fallback) for rows missing occurred_at.
 ALTER TABLE events ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ;
-DO $
+DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -20,7 +20,7 @@ BEGIN
   ELSE
     UPDATE events SET occurred_at = NOW() WHERE occurred_at IS NULL;
   END IF;
-END $;
+END $$;
 ALTER TABLE events ALTER COLUMN occurred_at SET DEFAULT NOW();
 ALTER TABLE events ALTER COLUMN occurred_at SET NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_events_order_occurred ON events(order_id, occurred_at ASC, event_id ASC);
