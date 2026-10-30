@@ -91,3 +91,31 @@ Content-Type: application/json
 Use the returned values to open Checkout in the browser. On successful Checkout, post its three Razorpay callback values plus the returned local `order_id` to `/api/payments/razorpay/verify`. Use Razorpay's official Test Mode card/UPI test values shown in its Dashboard/docs; no real money is deducted.
 
 **Important:** Enable automatic payment capture in Razorpay Test Mode. The verify endpoint deliberately refuses to mark an order paid unless Razorpay reports the payment as `captured`. Do not use the old `POST /api/orders` endpoint for checkout testing; it remains a simulated-payment demo route.
+
+
+## Agent-facing shipment business tools
+
+These endpoints expose narrow shipment operations rather than database access or the full backend. Every tool takes an `order_id` UUID query parameter:
+
+| Tool | Endpoint | Purpose |
+|---|---|---|
+| `get_shipment` | `GET /api/agent-tools/get_shipment` | Shipment record and order context |
+| `get_shipment_status` | `GET /api/agent-tools/get_shipment_status` | Current shipment lifecycle status |
+| `get_shipment_timeline` | `GET /api/agent-tools/get_shipment_timeline` | Recorded order/shipment events, oldest first |
+| `get_shipment_location` | `GET /api/agent-tools/get_shipment_location` | Latest stored location, if available |
+| `get_shipment_eta` | `GET /api/agent-tools/get_shipment_eta` | Estimated delivery timestamp, if available |
+| `get_carrier_details` | `GET /api/agent-tools/get_carrier_details` | Carrier and tracking references, if available |
+| `get_shipment_issues` | `GET /api/agent-tools/get_shipment_issues` | Failed/delayed/exception events and shipment error |
+
+Example:
+```http
+GET /api/agent-tools/get_shipment_status?order_id=<order-uuid>
+```
+
+The existing `events` table powers the timeline and issue history. The shipment table gains nullable carrier, tracking, location, and ETA fields; null means the carrier has not supplied that information (the seeded demo failure has no real tracking data). Apply the migration to an existing database:
+
+```powershell
+psql -U postgres -d aftermath_ai -f .\\database\\shipment_agent_tools_migration.sql
+```
+
+For a fresh database, the new columns are also included in `database/schema.sql`. These read-only tools do not fabricate a location or ETA and return HTTP 404 when the order has no shipment.
