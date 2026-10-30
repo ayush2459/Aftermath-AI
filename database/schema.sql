@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS inventory_reservations (
 CREATE TABLE IF NOT EXISTS shipments (
  shipment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(), order_id UUID NOT NULL UNIQUE REFERENCES orders(order_id),
  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','creating','created','shipped','failed','unknown','cancelled')),
- idempotency_key TEXT NOT NULL UNIQUE, provider_ref TEXT UNIQUE, last_error TEXT,\n carrier_name TEXT, carrier_code TEXT, tracking_number TEXT, current_location TEXT, estimated_delivery_at TIMESTAMPTZ,
+ idempotency_key TEXT NOT NULL UNIQUE, provider_ref TEXT UNIQUE, last_error TEXT,
+ carrier_name TEXT, carrier_code TEXT, tracking_number TEXT, current_location TEXT, estimated_delivery_at TIMESTAMPTZ,
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE TABLE IF NOT EXISTS incidents (
