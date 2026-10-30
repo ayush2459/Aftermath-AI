@@ -189,7 +189,7 @@ def verify_razorpay_payment(payload: VerifyPaymentIn, db: Session = Depends(get_
             """), {"iid": incident_id, "oid": payload.order_id, "cid": correlation_id})
             db.execute(text("""
                 INSERT INTO events(incident_id, order_id, source, event_type, severity, message, payload, correlation_id)
-                VALUES (:iid, :oid, 'shipping-service', 'shipment.failed', 'high',
+                VALUES (:iid, :oid, 'shipping-service', 'shipment.failed', 'error',
                   'Carrier allocation timed out after verified test payment.',
                   CAST(:payload AS JSONB), :cid)
             """), {"iid": incident_id, "oid": payload.order_id,
