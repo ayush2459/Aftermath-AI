@@ -115,7 +115,7 @@ GET /api/agent-tools/get_shipment_status?order_id=<order-uuid>
 The existing `events` table powers the timeline and issue history. The shipment table gains nullable carrier, tracking, location, and ETA fields; null means the carrier has not supplied that information (the seeded demo failure has no real tracking data). Apply the migration to an existing database:
 
 ```powershell
-psql -U postgres -d aftermath_ai -f .\\database\\shipment_agent_tools_migration.sql
+psql -U postgres -d aftermath_ai -f .\database\shipment_agent_tools_migration.sql
 ```
 
 For a fresh database, the new columns are also included in `database/schema.sql`. These read-only tools do not fabricate a location or ETA and return HTTP 404 when the order has no shipment.
