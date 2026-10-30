@@ -4,6 +4,16 @@ import { ArrowRight, Check, ChevronDown, CircleHelp, CreditCard, Headphones, Loc
 const API = (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 const money = (paise) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format((paise || 0) / 100);
 
+// Use a stable, explicit asset URL for the headphones and cache-bust static images
+// so browsers do not keep an earlier corrupted response.
+const productImage = (product) => {
+  const path = product.product_id === "aurora-headphones"
+    ? "/static/products/aurora-headphones.jpg"
+    : (product.image_url || "");
+  const url = /^https?:\\/\\//i.test(path) ? path : `${API}${path.startsWith("/") ? path : `/${path}`}`;
+  return `${url}${url.includes("?") ? "&" : "?"}v=20261030-2`;
+};
+
 function App() {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState({});
@@ -137,7 +147,7 @@ function App() {
         <div className="section-heading"><div><div className="eyebrow">THE COLLECTION / 2026</div><h2>Tools for <em>what's next.</em></h2><p>Considered essentials. No unnecessary noise.</p></div><div className="collection-count">05 <span>PRODUCTS</span></div></div>
         {loading ? <div className="loading-state">Preparing the collection<span className="loader"/></div> :
           <div className="product-grid">{products.map((p, i) => <article className="product-card" key={p.product_id}>
-            <div className="product-image"><span className="product-number">0{i + 1}</span><img src={p.image_url?.startsWith("http") ? p.image_url : `${API}${p.image_url || ""}`} alt={p.name}/><span className="image-label">AFTER EFFECTS / OBJECTS</span></div>
+            <div className="product-image"><span className="product-number">0{i + 1}</span><img src={productImage(p)} alt={p.name}/><span className="image-label">AFTER EFFECTS / OBJECTS</span></div>
             <div className="product-info"><div><h3>{p.name}</h3><p>{p.description}</p></div><div className="product-bottom"><b>{money(p.price_paise)}</b><div className="quantity-control"><button aria-label="Remove one" onClick={() => changeQty(p.product_id, -1)} disabled={!cart[p.product_id]}><Minus size={14}/></button><span>{cart[p.product_id] || 0}</span><button aria-label="Add one" onClick={() => changeQty(p.product_id, 1)} disabled={p.stock_quantity <= (cart[p.product_id] || 0)}><Plus size={14}/></button></div></div><div className="stock-line">{p.stock_quantity} available <span>·</span> Inclusive of all taxes</div></div>
           </article>)}</div>}
       </section>
