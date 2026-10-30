@@ -12,6 +12,7 @@ from .config import CORS_ORIGINS
 from .db import get_db
 from .schemas import OrderCreateIn, OrderCreatedOut, ProductOut
 from .payments import router as razorpay_router
+from .shipments import router as shipment_tools_router
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "static"
@@ -32,6 +33,7 @@ if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 app.include_router(razorpay_router)
+app.include_router(shipment_tools_router)
 
 @app.get("/")
 def root():
