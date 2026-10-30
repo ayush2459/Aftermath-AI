@@ -494,3 +494,22 @@
   .shipment-product-name b { font-size: 11px; }
   .shipment-product-row strong { font-size: 10px; }
 }
+
+
+/* Separate storefront and shipment-monitoring routes */
+.storefront-page .shipment-dashboard { display: none; }
+.shipment-page .hero,
+.shipment-page .trust-strip,
+.shipment-page .shop-section,
+.shipment-page .checkout-section,
+.shipment-page .result-panel,
+.shipment-page .story-section { display: none; }
+.shipment-page .shipment-dashboard { display: block; min-height: calc(100vh - 150px); padding-top: 72px; }
+.shipment-page .cart-pill { display: none; }
+.shipment-page .topbar nav { display: flex; align-items: center; gap: 28px; }
+.shipment-page .topbar nav a.active { color: var(--lime); }
+@media (max-width: 620px) {
+  .shipment-page .topbar { height: auto; min-height: 68px; align-items: flex-start; flex-direction: column; gap: 14px; padding: 16px 20px; }
+  .shipment-page .topbar nav { display: flex; width: 100%; flex-wrap: wrap; gap: 18px; }
+  .shipment-page .shipment-dashboard { padding: 48px 5%; }
+}
