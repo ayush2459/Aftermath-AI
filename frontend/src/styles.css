@@ -513,3 +513,80 @@
   .shipment-page .topbar nav { display: flex; width: 100%; flex-wrap: wrap; gap: 18px; }
   .shipment-page .shipment-dashboard { padding: 48px 5%; }
 }
+
+
+/* Discord recovery assistance CTA on shipment cards */
+.discord-help-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 22px;
+  padding: 18px;
+  border: 1px solid rgba(88, 101, 242, .38);
+  border-radius: 9px;
+  background: linear-gradient(115deg, rgba(88, 101, 242, .13), rgba(255,255,255,.025));
+}
+.discord-help-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #fff;
+  background: #5865f2;
+}
+.discord-help-copy {
+  flex: 1;
+  min-width: 0;
+}
+.discord-help-copy .eyebrow {
+  color: #aab3ff;
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+.discord-help-copy b {
+  display: block;
+  margin-top: 6px;
+  color: #f3f5f9;
+  font-size: 12px;
+}
+.discord-help-copy p {
+  margin: 6px 0 0;
+  color: #a3adbf;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.discord-help-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 11px 13px;
+  border-radius: 6px;
+  background: #5865f2;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: background .2s, transform .2s;
+}
+.discord-help-button:hover {
+  background: #4752c4;
+  transform: translateY(-1px);
+}
+@media (max-width: 620px) {
+  .discord-help-card {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 15px;
+  }
+  .discord-help-copy {
+    flex: 1 1 calc(100% - 60px);
+  }
+  .discord-help-button {
+    width: 100%;
+    margin-top: 3px;
+  }
+}
