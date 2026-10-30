@@ -1025,7 +1025,7 @@ function App() {
                       </div>
                       <a
                         className="discord-help-button"
-                        href="https://discord.gg/Az3StcNU7"
+                        href="https://discord.gg/6sCDwusbw"
                         target="_blank"
                         rel="noopener noreferrer"
                       >
