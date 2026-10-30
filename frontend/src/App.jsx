@@ -63,6 +63,7 @@ const readable = (value) =>
     .replaceAll(".", " ");
 
 function App() {
+  const isShipmentPage = window.location.pathname.replace(/\/+$/, "") === "/shipments";
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState({});
   const [loading, setLoading] = useState(true);
@@ -474,7 +475,7 @@ function App() {
   };
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${isShipmentPage ? "shipment-page" : "storefront-page"}`} >
       <div className="announcement">
         <Sparkles size={14} />
         A smarter way to shop — built for resilient commerce
@@ -493,9 +494,10 @@ function App() {
         </a>
 
         <nav>
-          <a className="active" href="#shop">Shop</a>
-          <a href="#story">How it works</a>
-          <a href="#support">Support</a>
+          <a className={!isShipmentPage ? "active" : ""} href="/">Shop</a>
+          <a className={isShipmentPage ? "active" : ""} href="/shipments">Shipment Monitoring</a>
+          {!isShipmentPage && <a href="#story">How it works</a>}
+          {!isShipmentPage && <a href="#support">Support</a>}
         </nav>
 
         <a className="cart-pill" href="#order-summary">
