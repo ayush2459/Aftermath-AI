@@ -8,7 +8,8 @@ class NotificationWorkerTests(unittest.TestCase):
             "app", "notification_worker.py"
         ).read_text()
         self.assertIn("attempts < 5", source)
-        self.assertIn("INTERVAL '30 seconds'", source)
+        self.assertIn("make_interval(", source)
+        self.assertIn("secs => LEAST(900", source)
         self.assertIn("INTERVAL '5 minutes'", source)
         self.assertIn("LIMIT :batch_size", source)
 
