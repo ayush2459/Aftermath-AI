@@ -24,6 +24,7 @@ def get_client():
 
 class VerifyPaymentIn(BaseModel):
     order_id: UUID
+    customer_session: str = Field(min_length=3, max_length=120)
     razorpay_order_id: str = Field(min_length=5, max_length=80)
     razorpay_payment_id: str = Field(min_length=5, max_length=80)
     razorpay_signature: str = Field(min_length=32, max_length=256)
@@ -103,8 +104,12 @@ def verify_razorpay_payment(payload: VerifyPaymentIn, db: Session = Depends(get_
                o.status AS order_status, o.total_paise
         FROM payments p JOIN orders o ON o.order_id = p.order_id
         WHERE p.order_id = :oid
+          AND o.customer_session = :customer_session
         FOR UPDATE
-    """), {"oid": payload.order_id}).mappings().first()
+    """), {
+        "oid": payload.order_id,
+        "customer_session": payload.customer_session,
+    }).mappings().first()
     if not payment:
         raise HTTPException(status_code=404, detail="Pending order not found.")
     if payment["razorpay_order_id"] != payload.razorpay_order_id:
