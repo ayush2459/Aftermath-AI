@@ -80,13 +80,6 @@ def _send_discord(payload):
 
 def dispatch_discord_alert(db, incident_id, notification_key="incident.created"):
     """Deliver one incident alert using the persistent notification outbox."""
-    if not (
-        (DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID)
-        or DISCORD_WEBHOOK_URL
-    ):
-        logger.warning("Discord credentials are not configured.")
-        return False
-
     dedupe_key = f"{incident_id}:{notification_key}"
     try:
         # Each logical event receives one durable, independently retryable outbox row.
@@ -97,6 +90,13 @@ def dispatch_discord_alert(db, incident_id, notification_key="incident.created")
             ON CONFLICT (dedupe_key) DO NOTHING
         """), {"incident_id": incident_id, "dedupe_key": dedupe_key})
         db.commit()
+
+        if not (
+            (DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID)
+            or DISCORD_WEBHOOK_URL
+        ):
+            logger.warning("Discord credentials are not configured; event remains pending.")
+            return False
 
         # Claim atomically to prevent concurrent duplicate sends.
         claimed = db.execute(text("""
