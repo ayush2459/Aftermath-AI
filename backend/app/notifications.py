@@ -15,40 +15,67 @@ logger = logging.getLogger(__name__)
 
 
 def _send_discord(payload):
-    """Send through the configured bot, falling back to an incoming webhook."""
-    body = json.dumps(payload).encode("utf-8")
+    """Send a Discord message through the bot API or webhook fallback."""
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
     if DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID:
-        request = urllib.request.Request(
-            f"https://discord.com/api/v10/channels/{DISCORD_CHANNEL_ID}/messages",
-            data=body,
-            headers={
-                "Authorization": f"Bot {DISCORD_BOT_TOKEN}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
+        url = (
+            f"https://discord.com/api/v10/channels/"
+            f"{DISCORD_CHANNEL_ID}/messages"
         )
+        headers = {
+            "Authorization": f"Bot {DISCORD_BOT_TOKEN}",
+            "Content-Type": "application/json",
+            "User-Agent": "AftermathAI/1.0",
+        }
     elif DISCORD_WEBHOOK_URL:
-        request = urllib.request.Request(
-            DISCORD_WEBHOOK_URL,
-            data=body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
+        url = DISCORD_WEBHOOK_URL
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "AftermathAI/1.0",
+        }
     else:
         logger.warning("Discord is not configured; notification remains pending.")
         return False
 
+    request = urllib.request.Request(
+        url,
+        data=body,
+        headers=headers,
+        method="POST",
+    )
+
     try:
-        with urllib.request.urlopen(request, timeout=DISCORD_ALERT_TIMEOUT) as response:
+        with urllib.request.urlopen(
+            request, timeout=DISCORD_ALERT_TIMEOUT
+        ) as response:
             if response.status not in (200, 201, 204):
-                raise RuntimeError(f"Discord returned HTTP {response.status}")
+                raise RuntimeError(
+                    f"Discord returned HTTP {response.status}"
+                )
         return True
+
     except HTTPError as exc:
-        # Do not include request headers or credential-bearing URLs in logs.
-        raise RuntimeError(f"Discord returned HTTP {exc.code}") from exc
+        # Discord's response body contains useful error codes/messages.
+        # Never log request headers, tokens, or webhook URLs.
+        try:
+            error_body = exc.read().decode("utf-8", errors="replace")
+        except Exception:
+            error_body = "No response body available"
+
+        logger.error(
+            "Discord API rejected notification: HTTP %s; response: %s",
+            exc.code,
+            error_body[:1500],
+        )
+        raise RuntimeError(
+            f"Discord returned HTTP {exc.code}: {error_body[:500]}"
+        ) from exc
+
     except URLError as exc:
-        raise RuntimeError(f"Discord request failed: {exc.reason}") from exc
+        raise RuntimeError(
+            f"Discord request failed: {exc.reason}"
+        ) from exc
 
 
 def dispatch_discord_alert(db, incident_id):
