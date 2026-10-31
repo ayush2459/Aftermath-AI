@@ -1,6 +1,6 @@
 
 import React, { useEffect, useMemo, useState } from "react";
-import { sampleTrackingNumber } from "./demoTracking";
+import { sampleJourneyStage, sampleTrackingNumber, shouldOpenSampleJourney } from "./demoTracking";
 import {
   ArrowRight,
   Check,
@@ -64,6 +64,115 @@ const readable = (value) =>
     .replaceAll("_", " ")
     .replaceAll(".", " ");
 
+const demoSteps = [
+  { title: "Payment verified", description: "Test payment verified for this sample order." },
+  { title: "Carrier allocated", description: "A sample carrier is assigned in this illustration." },
+  { title: "Shipment created", description: "The sample parcel is registered for delivery." },
+  { title: "In transit", description: "The sample parcel moves through the delivery network." },
+  { title: "Out for delivery", description: "The sample parcel is dispatched for final delivery." },
+  { title: "Delivered", description: "The sample delivery is complete." }
+];
+
+function DemoShipmentCard({ shipment, now, startedAt, onRestart }) {
+  const recordedStart = Date.parse(shipment.sample_journey_started_at || "");
+  const journeyStart = startedAt ?? recordedStart;
+  const stage = sampleJourneyStage(journeyStart, now, demoSteps.length);
+  const trackingNumber = sampleTrackingNumber(shipment);
+
+  return (
+    <article className="shipment-card demo-shipment-card">
+      <div className="shipment-card-top">
+        <div>
+          <span className="eyebrow">ORDER REFERENCE</span>
+          <h3>{shipment.order_id}</h3>
+        </div>
+        <span className="shipment-status demo-status">{demoSteps[stage].title}</span>
+      </div>
+
+      <div className="shipment-demo-note" role="note">
+        <b>Illustrative delivery demo · No real parcel is being shipped</b>
+        <p>This sample journey starts automatically when the app records a test shipment failure. It does not change the recorded incident or represent carrier updates.</p>
+      </div>
+
+      <div className="demo-success-summary">
+        <div className="demo-success-icon"><Check size={23} /></div>
+        <div>
+          <h4>{stage === demoSteps.length - 1 ? "Shipment delivered successfully" : `Sample shipment: ${demoSteps[stage].title}`}</h4>
+          <p>In this sample journey, payment is verified, a carrier is allocated, and the parcel progresses through delivery.</p>
+        </div>
+      </div>
+
+      <div className="shipment-metrics">
+        <div><small>ORDER STATUS</small><b>{demoSteps[stage].title}</b></div>
+        <div><small>INCIDENT STATUS</small><b>{stage === demoSteps.length - 1 ? "Resolved in demo" : "In progress in demo"}</b></div>
+        <div><small>PAYMENT STATUS</small><b>Verified test payment</b></div>
+        <div><small>ORDER VALUE</small><b>{money(shipment.total_paise)}</b></div>
+      </div>
+
+      <div className="shipment-products">
+        <div className="shipment-products-heading">
+          <span className="eyebrow">ORDERED PRODUCTS</span>
+          <span className="timeline-count">
+            {(shipment.ordered_products || []).reduce((sum, product) => sum + product.quantity, 0)} ITEMS
+          </span>
+        </div>
+        <div className="shipment-product-list">
+          {(shipment.ordered_products || []).map((product) => (
+            <div className="shipment-product-row" key={product.product_id}>
+              <div className="shipment-product-thumb">
+                {product.product_id === "aurora-headphones" ? <Headphones size={20} /> : <ShoppingBag size={20} />}
+              </div>
+              <div className="shipment-product-name">
+                <b>{product.product_name}</b>
+                <small>SKU: {product.product_id}</small>
+              </div>
+              <span className="shipment-product-qty">Qty {product.quantity}</span>
+              <strong>{money(product.line_total_paise)}</strong>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="demo-tracking-number">
+        <small>TRACKING NUMBER</small>
+        <b>{trackingNumber}</b>
+        <span>Illustrative tracking reference only. Use an actual carrier number when carrier integration is available.</span>
+      </div>
+
+      <div className="demo-journey">
+        <div className="timeline-heading">
+          <div><span className="eyebrow">SAMPLE SHIPMENT TIMELINE</span><h4>Delivery journey</h4></div>
+          <button type="button" className="demo-restart" onClick={onRestart}>Replay journey</button>
+        </div>
+        {demoSteps.map((step, index) => (
+          <div className={`demo-journey-step ${index <= stage ? "complete" : "upcoming"}`} key={step.title}>
+            <span className="demo-journey-marker">{index <= stage ? <Check size={14} /> : index + 1}</span>
+            <div className="demo-journey-copy"><b>{step.title}</b><p>{step.description}</p></div>
+            <small>{index <= stage ? "Completed" : "Coming up"}</small>
+          </div>
+        ))}
+      </div>
+
+      <div className="demo-recovery-status">
+        <span className="eyebrow">AFTERMATH AI / RECOVERY STATUS</span>
+        <b>{stage === demoSteps.length - 1 ? "Sample order successfully fulfilled" : "Sample order progressing"}</b>
+        <p>No active shipment incident in this illustration. The recorded test incident remains unchanged.</p>
+      </div>
+
+      <div className="discord-help-card">
+        <div className="discord-help-icon"><MessageCircle size={21} /></div>
+        <div className="discord-help-copy">
+          <span className="eyebrow">NEED HELP WITH THIS SHIPMENT?</span>
+          <b>Ask our Aftermath AI bot for shipment information and support.</b>
+        </div>
+        <a className="discord-help-button" href="https://discord.gg/6sCDwusbw" target="_blank" rel="noopener noreferrer">
+          Open Aftermath AI on Discord <ArrowRight size={15} />
+        </a>
+      </div>
+    </article>
+  );
+}
+
 function App() {
   const isShipmentPage = window.location.pathname.replace(/\/+$/, "") === "/shipments";
   const [products, setProducts] = useState([]);
@@ -89,7 +198,11 @@ function App() {
   const [shipments, setShipments] = useState([]);
   const [shipmentsLoading, setShipmentsLoading] = useState(true);
   const [shipmentError, setShipmentError] = useState("");
-  const [trackingQuery, setTrackingQuery] = useState("");
+  const [trackingQuery, setTrackingQuery] = useState(() =>
+    new URLSearchParams(window.location.search).get("order") || ""
+  );
+  const [demoNow, setDemoNow] = useState(Date.now);
+  const [demoStartedAt, setDemoStartedAt] = useState(null);
   const [timelines, setTimelines] = useState({});
   const [timelineErrors, setTimelineErrors] = useState({});
 
@@ -170,8 +283,20 @@ function App() {
   };
 
   useEffect(() => {
-    refreshShipments();
-  }, []);
+    if (isShipmentPage) refreshShipments();
+  }, [isShipmentPage]);
+
+  useEffect(() => {
+    if (!isShipmentPage) return undefined;
+    const timer = window.setInterval(() => setDemoNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [isShipmentPage]);
+
+  const restartDemo = () => {
+    const started = Date.now();
+    setDemoStartedAt(started);
+    setDemoNow(started);
+  };
 
   // Fetch products
   useEffect(() => {
@@ -357,11 +482,25 @@ function App() {
               );
             }
 
+            let sampleShipmentFailure = false;
+            try {
+              const statusResponse = await fetch(
+                `${API}/api/orders/${encodeURIComponent(order.order_id)}`
+              );
+              if (statusResponse.ok) {
+                const orderStatus = await statusResponse.json();
+                sampleShipmentFailure = shouldOpenSampleJourney(orderStatus);
+              }
+            } catch {
+              // Payment is verified; keep the result visible if shipment lookup is unavailable.
+            }
+
             setResult({
               ...verified,
               localOrderId: order.order_id,
               paymentId: response.razorpay_payment_id,
-              amount: order.amount
+              amount: order.amount,
+              sampleShipmentFailure
             });
 
             setCart({});
@@ -372,7 +511,11 @@ function App() {
                 "Payment verified by the Aftermath AI backend."
             });
 
-            await refreshShipments();
+            if (sampleShipmentFailure) {
+              window.location.assign(
+                `/shipments?order=${encodeURIComponent(order.order_id)}`
+              );
+            }
           } catch (error) {
             setNotice({
               type: "error",
@@ -720,8 +863,8 @@ function App() {
               </div>
               <h2>Shipment <em>monitor.</em></h2>
               <p>
-                These are sample orders. Shipment failures here are intentional
-                examples, and no physical parcels are sent.
+                Explore sample delivery stages and tracking numbers. These
+                updates are simulated; no physical parcels are sent.
               </p>
             </div>
 
@@ -768,6 +911,16 @@ function App() {
           ) : (
             <div className="shipment-list">
               {matchingShipments.map((shipment) => {
+                if (sampleTrackingNumber(shipment)) {
+                  return <DemoShipmentCard
+                    key={shipment.shipment_id}
+                    shipment={shipment}
+                    now={demoNow}
+                    startedAt={demoStartedAt}
+                    onRestart={restartDemo}
+                  />;
+                }
+
                 const events = [
                   ...(timelines[shipment.order_id] || [])
                 ].sort(
@@ -1255,9 +1408,9 @@ function App() {
             </h2>
 
             <p>
-              Your test payment was verified by the backend.
-              The demo has now recorded a shipment allocation failure
-              so you can explore Aftermath AI's recovery workflow.
+              {result.sampleShipmentFailure
+                ? "Your test payment was verified. The sample shipment journey is ready to view."
+                : "Your test payment was verified. Check this order's shipment status for the next update."}
             </p>
 
             <div className="result-details">
@@ -1273,7 +1426,7 @@ function App() {
 
               <div>
                 <small>ORDER STATUS</small>
-                <b>Recovery required</b>
+                <b>{result.sampleShipmentFailure ? "Sample recovery" : "Check shipment status"}</b>
               </div>
             </div>
 
@@ -1281,19 +1434,16 @@ function App() {
               <Sparkles size={18} />
 
               <span>
-                <b>Recovery workflow started</b>
+                <b>{result.sampleShipmentFailure ? "Sample recovery workflow started" : "Order status"}</b>
                 <small>
-                  Shipment failure incident created. Open the API docs
-                  to inspect the shipment agent tools.
+                  Open this order's shipment page to see its latest status.
                 </small>
               </span>
 
               <a
-                href={`${API}/docs`}
-                target="_blank"
-                rel="noreferrer"
+                href={`/shipments?order=${encodeURIComponent(result.localOrderId)}`}
               >
-                View API <ArrowRight size={14} />
+                View this order <ArrowRight size={14} />
               </a>
             </div>
           </section>

@@ -1,10 +1,22 @@
+export const isSeededDemoFailure = (shipment) =>
+  shipment?.shipment_status === "failed" &&
+  shipment.last_error?.startsWith("Seeded demo failure:");
+
+export const shouldOpenSampleJourney = (order) =>
+  order?.payment_status === "captured" && isSeededDemoFailure(order);
+
 export const sampleTrackingNumber = (shipment) => {
-  if (
-    !shipment?.last_error?.startsWith("Seeded demo failure:") ||
-    !shipment.shipment_id
-  ) {
+  if (!isSeededDemoFailure(shipment) || !shipment.shipment_id) {
     return null;
   }
 
   return `DEMO-${shipment.shipment_id.replaceAll("-", "").toUpperCase()}`;
+};
+
+export const sampleJourneyStage = (startedAt, now, stepCount = 6) => {
+  if (!Number.isFinite(startedAt)) return stepCount - 1;
+  return Math.min(
+    Math.max(0, Math.floor((now - startedAt) / 6000)),
+    stepCount - 1
+  );
 };

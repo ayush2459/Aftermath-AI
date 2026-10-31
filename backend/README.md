@@ -119,3 +119,7 @@ psql -U postgres -d aftermath_ai -f .\database\shipment_agent_tools_migration.sq
 ```
 
 For a fresh database, the new columns are also included in `database/schema.sql`. These read-only tools do not fabricate a location or ETA and return HTTP 404 when the order has no shipment.
+
+### Automatic sample delivery journey
+
+`GET /api/agent-tools/list_shipments` includes `sample_journey_started_at` only for seeded demo failures. The shipment page uses that recorded timestamp to advance its illustrative delivery stages automatically, including across browser refreshes. This is a display-only simulation: it does not change the shipment, order, payment, incident, or carrier records. Real failed shipments retain their recorded status until a carrier-backed recovery confirms a change. The sample tracking reference is derived from the shipment ID and is never a carrier tracking number.

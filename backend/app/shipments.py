@@ -255,6 +255,11 @@ def list_shipments(db: Session = Depends(get_db)):
                 s.current_location,
                 s.estimated_delivery_at,
                 s.last_error,
+                CASE
+                    WHEN s.last_error LIKE 'Seeded demo failure:%'
+                    THEN s.created_at
+                    ELSE NULL
+                END AS sample_journey_started_at,
                 s.updated_at AS shipment_updated_at,
 
                 i.incident_id,
