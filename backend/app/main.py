@@ -254,10 +254,13 @@ def create_order(payload: OrderCreateIn, db: Session = Depends(get_db)):
             # as the incident. This makes delivery tracking persistent.
             db.execute(text("""
                 INSERT INTO notification_deliveries (
-                    incident_id, channel, status
+                    incident_id, channel, status, dedupe_key
                 )
-                VALUES (:incident_id, 'discord', 'pending')
-                ON CONFLICT (incident_id) DO NOTHING
+                VALUES (
+                    :incident_id, 'discord', 'pending',
+                    CAST(:incident_id AS TEXT) || ':incident.created'
+                )
+                ON CONFLICT (dedupe_key) DO NOTHING
             """), {"incident_id": incident_id})
 
             db.execute(text("""

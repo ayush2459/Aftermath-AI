@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from .config import RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_MODE
 from .db import get_db
 from .schemas import OrderCreateIn
+from .notifications import dispatch_discord_alert
 
 router = APIRouter(prefix="/api/payments/razorpay", tags=["Razorpay payments"])
 
@@ -299,6 +300,7 @@ def verify_razorpay_payment(payload: VerifyPaymentIn, db: Session = Depends(get_
         raise HTTPException(status_code=500, detail="Payment verified with Razorpay, but local finalization failed; reconcile before retrying.") from exc
 
     if reconciliation_required:
+        dispatch_discord_alert(db, reconciliation_incident_id)
         return {
             "verified": True,
             "status": "captured",
@@ -309,6 +311,7 @@ def verify_razorpay_payment(payload: VerifyPaymentIn, db: Session = Depends(get_
             "message": "Payment was captured, but inventory was unavailable. Manual reconciliation is required; no shipment was created.",
         }
 
+    dispatch_discord_alert(db, incident_id)
     return {"verified": True, "status": "captured", "order_id": str(payload.order_id),
             "incident_id": str(incident_id),
             "message": "Test payment verified. Order entered the Aftermath AI recovery workflow."}
