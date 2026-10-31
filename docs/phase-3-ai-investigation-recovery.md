@@ -14,7 +14,7 @@
 - Approval decision record at `POST /api/recovery/plans/{plan_id}/decision`.
 - Recovery proposals include preconditions, expected effect, risk, idempotency strategy, and verification criteria.
 - Approval and rejection are auditable. Neither decision executes the proposed action.
-- Regression tests for reconciliation, diagnosis validation, and recovery proposal rules.
+- Responsive operator-facing GhostTrail workspace at `/investigation`, linked from the storefront navigation; it supports evidence review, diagnosis, recovery proposals, and demo decision recording.\n- Regression tests for reconciliation, diagnosis validation, and recovery proposal rules.
 - CI on Phase 3 pushes and pull requests targeting Phase 3.
 
 ## Local configuration
