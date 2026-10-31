@@ -74,6 +74,12 @@ def get_shipment_status(
 ):
     """Return the current shipment and order status."""
     shipment = _shipment(db, order_id)
+    owner = db.execute(
+        text("SELECT customer_session FROM orders WHERE order_id = :order_id"),
+        {"order_id": order_id},
+    ).scalar_one_or_none()
+    if owner != customer_session:
+        raise HTTPException(status_code=404, detail="Shipment not found for this customer.")
 
     return {
         "order_id": str(order_id),
