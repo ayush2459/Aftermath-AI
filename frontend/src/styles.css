@@ -175,6 +175,46 @@
   gap: 8px;
 }
 
+.tracking-search {
+  display: grid;
+  gap: 9px;
+  max-width: 520px;
+  margin-top: 24px;
+  color: #a3adbf;
+  font-size: 13px;
+}
+
+.tracking-search input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 8px;
+  background: #121a2c;
+  color: #fff;
+  font: inherit;
+}
+
+.tracking-search input:focus-visible {
+  outline: 2px solid #b4ef55;
+  outline-offset: 2px;
+}
+
+.shipment-footer .tracking-reference {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tracking-reference span {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #e5edfa;
+}
+
+.tracking-reference small {
+  color: #a3adbf;
+}
+
 .tracking-empty {
   margin-top: 25px;
   padding: 30px;

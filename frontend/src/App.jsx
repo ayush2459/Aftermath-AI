@@ -1,5 +1,6 @@
 
 import React, { useEffect, useMemo, useState } from "react";
+import { sampleTrackingNumber } from "./demoTracking";
 import {
   ArrowRight,
   Check,
@@ -88,6 +89,7 @@ function App() {
   const [shipments, setShipments] = useState([]);
   const [shipmentsLoading, setShipmentsLoading] = useState(true);
   const [shipmentError, setShipmentError] = useState("");
+  const [trackingQuery, setTrackingQuery] = useState("");
   const [timelines, setTimelines] = useState({});
   const [timelineErrors, setTimelineErrors] = useState({});
 
@@ -475,6 +477,17 @@ function App() {
     return null;
   };
 
+  const matchingShipments = shipments.filter((shipment) => {
+    const query = trackingQuery.trim().toLowerCase();
+    if (!query) return true;
+
+    return [
+      shipment.order_id,
+      shipment.tracking_number,
+      sampleTrackingNumber(shipment)
+    ].some((value) => value?.toLowerCase().includes(query));
+  });
+
   return (
     <div className={`app-shell ${isShipmentPage ? "shipment-page" : "storefront-page"}`} >
       <div className="announcement">
@@ -722,6 +735,16 @@ function App() {
             </button>
           </div>
 
+          <label className="tracking-search">
+            Find an order by order reference or tracking number
+            <input
+              type="search"
+              value={trackingQuery}
+              onChange={(event) => setTrackingQuery(event.target.value)}
+              placeholder="Enter an order reference or sample tracking number"
+            />
+          </label>
+
           {shipmentsLoading ? (
             <div className="loading-state">
               Loading shipment records
@@ -738,9 +761,13 @@ function App() {
             <div className="tracking-empty">
               No shipment records found yet.
             </div>
+          ) : matchingShipments.length === 0 ? (
+            <div className="tracking-empty">
+              No test orders match that reference.
+            </div>
           ) : (
             <div className="shipment-list">
-              {shipments.map((shipment) => {
+              {matchingShipments.map((shipment) => {
                 const events = [
                   ...(timelines[shipment.order_id] || [])
                 ].sort(
@@ -1055,9 +1082,18 @@ function App() {
                           "Carrier not assigned"}
                       </span>
 
-                      <span>
-                        {shipment.tracking_number ||
-                          "Tracking number unavailable"}
+                      <span className="tracking-reference">
+                        <b>{shipment.tracking_number
+                          ? "Carrier tracking number"
+                          : isDemoFailure
+                            ? "Sample tracking number"
+                            : "Tracking number"}</b>
+                        <span>{shipment.tracking_number ||
+                          sampleTrackingNumber(shipment) ||
+                          "Unavailable until a carrier is assigned"}</span>
+                        {isDemoFailure && (
+                          <small>Demo only. This number cannot track a real parcel.</small>
+                        )}
                       </span>
                     </div>
                   </article>
