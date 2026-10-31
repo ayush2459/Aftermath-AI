@@ -143,6 +143,12 @@ def get_shipment_location(
 ):
     """Return the latest known shipment location."""
     shipment = _shipment(db, order_id)
+    owner = db.execute(
+        text("SELECT customer_session FROM orders WHERE order_id = :order_id"),
+        {"order_id": order_id},
+    ).scalar_one_or_none()
+    if owner != customer_session:
+        raise HTTPException(status_code=404, detail="Shipment not found for this customer.")
 
     location = shipment["current_location"]
 
@@ -163,6 +169,12 @@ def get_shipment_eta(
 ):
     """Return the estimated shipment delivery time."""
     shipment = _shipment(db, order_id)
+    owner = db.execute(
+        text("SELECT customer_session FROM orders WHERE order_id = :order_id"),
+        {"order_id": order_id},
+    ).scalar_one_or_none()
+    if owner != customer_session:
+        raise HTTPException(status_code=404, detail="Shipment not found for this customer.")
 
     eta = shipment["estimated_delivery_at"]
 
@@ -183,6 +195,12 @@ def get_carrier_details(
 ):
     """Return carrier and tracking information."""
     shipment = _shipment(db, order_id)
+    owner = db.execute(
+        text("SELECT customer_session FROM orders WHERE order_id = :order_id"),
+        {"order_id": order_id},
+    ).scalar_one_or_none()
+    if owner != customer_session:
+        raise HTTPException(status_code=404, detail="Shipment not found for this customer.")
 
     carrier_fields = (
         shipment["carrier_name"],
@@ -208,6 +226,12 @@ def get_shipment_issues(
 ):
     """Return shipment-related failures and unresolved issues."""
     shipment = _shipment(db, order_id)
+    owner = db.execute(
+        text("SELECT customer_session FROM orders WHERE order_id = :order_id"),
+        {"order_id": order_id},
+    ).scalar_one_or_none()
+    if owner != customer_session:
+        raise HTTPException(status_code=404, detail="Shipment not found for this customer.")
 
     rows = db.execute(
         text("""
