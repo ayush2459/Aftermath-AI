@@ -1,6 +1,6 @@
 
 import React, { useEffect, useMemo, useState } from "react";
-import { sampleJourneyStage, sampleTrackingNumber } from "./demoTracking";
+import { sampleJourneyStage, sampleTrackingNumber, shouldOpenSampleJourney } from "./demoTracking";
 import {
   ArrowRight,
   Check,
@@ -198,7 +198,9 @@ function App() {
   const [shipments, setShipments] = useState([]);
   const [shipmentsLoading, setShipmentsLoading] = useState(true);
   const [shipmentError, setShipmentError] = useState("");
-  const [trackingQuery, setTrackingQuery] = useState("");
+  const [trackingQuery, setTrackingQuery] = useState(() =>
+    new URLSearchParams(window.location.search).get("order") || ""
+  );
   const [demoNow, setDemoNow] = useState(Date.now);
   const [demoStartedAt, setDemoStartedAt] = useState(null);
   const [timelines, setTimelines] = useState({});
@@ -281,8 +283,8 @@ function App() {
   };
 
   useEffect(() => {
-    refreshShipments();
-  }, []);
+    if (isShipmentPage) refreshShipments();
+  }, [isShipmentPage]);
 
   useEffect(() => {
     if (!isShipmentPage) return undefined;
@@ -480,11 +482,25 @@ function App() {
               );
             }
 
+            let sampleShipmentFailure = false;
+            try {
+              const statusResponse = await fetch(
+                `${API}/api/orders/${encodeURIComponent(order.order_id)}`
+              );
+              if (statusResponse.ok) {
+                const orderStatus = await statusResponse.json();
+                sampleShipmentFailure = shouldOpenSampleJourney(orderStatus);
+              }
+            } catch {
+              // Payment is verified; keep the result visible if shipment lookup is unavailable.
+            }
+
             setResult({
               ...verified,
               localOrderId: order.order_id,
               paymentId: response.razorpay_payment_id,
-              amount: order.amount
+              amount: order.amount,
+              sampleShipmentFailure
             });
 
             setCart({});
@@ -495,7 +511,11 @@ function App() {
                 "Payment verified by the Aftermath AI backend."
             });
 
-            await refreshShipments();
+            if (sampleShipmentFailure) {
+              window.location.assign(
+                `/shipments?order=${encodeURIComponent(order.order_id)}`
+              );
+            }
           } catch (error) {
             setNotice({
               type: "error",
@@ -1388,9 +1408,9 @@ function App() {
             </h2>
 
             <p>
-              Your test payment was verified by the backend.
-              The demo has now recorded a shipment allocation failure
-              so you can explore Aftermath AI's recovery workflow.
+              {result.sampleShipmentFailure
+                ? "Your test payment was verified. The sample shipment journey is ready to view."
+                : "Your test payment was verified. Check this order's shipment status for the next update."}
             </p>
 
             <div className="result-details">
@@ -1406,7 +1426,7 @@ function App() {
 
               <div>
                 <small>ORDER STATUS</small>
-                <b>Recovery required</b>
+                <b>{result.sampleShipmentFailure ? "Sample recovery" : "Check shipment status"}</b>
               </div>
             </div>
 
@@ -1414,19 +1434,16 @@ function App() {
               <Sparkles size={18} />
 
               <span>
-                <b>Recovery workflow started</b>
+                <b>{result.sampleShipmentFailure ? "Sample recovery workflow started" : "Order status"}</b>
                 <small>
-                  Shipment failure incident created. Open the API docs
-                  to inspect the shipment agent tools.
+                  Open this order's shipment page to see its latest status.
                 </small>
               </span>
 
               <a
-                href={`${API}/docs`}
-                target="_blank"
-                rel="noreferrer"
+                href={`/shipments?order=${encodeURIComponent(result.localOrderId)}`}
               >
-                View API <ArrowRight size={14} />
+                View this order <ArrowRight size={14} />
               </a>
             </div>
           </section>

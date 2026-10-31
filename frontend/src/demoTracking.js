@@ -1,8 +1,12 @@
+export const isSeededDemoFailure = (shipment) =>
+  shipment?.shipment_status === "failed" &&
+  shipment.last_error?.startsWith("Seeded demo failure:");
+
+export const shouldOpenSampleJourney = (order) =>
+  order?.payment_status === "captured" && isSeededDemoFailure(order);
+
 export const sampleTrackingNumber = (shipment) => {
-  if (
-    !shipment?.last_error?.startsWith("Seeded demo failure:") ||
-    !shipment.shipment_id
-  ) {
+  if (!isSeededDemoFailure(shipment) || !shipment.shipment_id) {
     return null;
   }
 
