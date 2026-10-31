@@ -533,6 +533,7 @@ function App() {
                 },
                 body: JSON.stringify({
                   order_id: order.order_id,
+                  customer_session: customerSession,
                   razorpay_order_id:
                     response.razorpay_order_id,
                   razorpay_payment_id:
