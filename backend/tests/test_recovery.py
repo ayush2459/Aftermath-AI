@@ -23,5 +23,15 @@ class RecoveryPlanTests(unittest.TestCase):
         self.assertFalse(plan["execution_enabled"])
 
 
+class RecoveryExecutionUnitTests(unittest.TestCase):
+    def test_recovery_plan_is_not_executable_before_approval(self):
+        plan = build_recovery_plan(
+            {"payment": {"status": "captured"}, "shipment": {"status": "failed"}},
+            [{"code": "payment_captured_shipment_failed", "severity": "high", "message": "Mismatch"}],
+        )
+        self.assertFalse(plan["execution_enabled"])
+        self.assertTrue(plan["actions"][0]["approval_required"])
+
+
 if __name__ == "__main__":
     unittest.main()
