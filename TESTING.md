@@ -20,7 +20,7 @@ npm test
 npm run build
 ```
 
-The backend tests cover access to the sample recovery action, payment and failure eligibility, and the recorded sample action. The frontend tests cover sample tracking references and timeline progression. These checks do not prove that a real carrier created or delivered a parcel.
+The backend tests cover access to the sample recovery action, payment and failure eligibility, and its recorded event. The frontend tests cover sample tracking references and timeline progression. These checks do not prove that a real carrier created or delivered a parcel.
 
 ## Local checkout and shipment check
 

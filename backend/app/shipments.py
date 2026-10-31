@@ -285,11 +285,10 @@ def list_shipments(db: Session = Depends(get_db)):
                 ON i.order_id = o.order_id
 
             LEFT JOIN LATERAL (
-                SELECT ra.status, ra.created_at
-                FROM recovery_actions ra
-                WHERE ra.incident_id = i.incident_id
-                  AND ra.action_type = 'sample_delivery_simulation'
-                ORDER BY ra.created_at DESC
+                SELECT 'completed'::text AS status
+                FROM events recovery_event
+                WHERE recovery_event.order_id = o.order_id
+                  AND recovery_event.event_type = 'sample_delivery_simulation'
                 LIMIT 1
             ) demo_recovery ON TRUE
 
@@ -363,32 +362,34 @@ def complete_sample_recovery(
         ):
             raise HTTPException(status_code=409, detail="This order has no eligible sample recovery.")
 
-        db.execute(
+        existing_event = db.execute(
             text("""
-                INSERT INTO recovery_actions (
-                    incident_id, action_type, status, idempotency_key, input, result
-                ) VALUES (
-                    :incident_id, 'sample_delivery_simulation', 'completed',
-                    :idempotency_key, CAST(:input AS JSONB), CAST(:result AS JSONB)
-                )
-                ON CONFLICT (idempotency_key) DO NOTHING
+                SELECT event_id FROM events
+                WHERE order_id = :order_id
+                  AND event_type = 'sample_delivery_simulation'
+                LIMIT 1
             """),
-            {
-                "incident_id": row["incident_id"],
-                "idempotency_key": f"sample-delivery:{payload.order_id}",
-                "input": '{"customer_confirmed": true, "simulated": true}',
-                "result": '{"sample_resolution": "delivered", "simulated": true}',
-            },
-        )
-        action_status = db.execute(
-            text("""
-                SELECT status FROM recovery_actions
-                WHERE idempotency_key = :idempotency_key
-            """),
-            {"idempotency_key": f"sample-delivery:{payload.order_id}"},
-        ).scalar_one()
-        if action_status != "completed":
-            raise HTTPException(status_code=409, detail="Sample recovery is not complete.")
+            {"order_id": payload.order_id},
+        ).first()
+        if not existing_event:
+            db.execute(
+                text("""
+                    INSERT INTO events (
+                        incident_id, order_id, source, event_type,
+                        severity, message, payload
+                    ) VALUES (
+                        :incident_id, :order_id, 'aftermath-demo',
+                        'sample_delivery_simulation', 'info',
+                        'Customer confirmed an illustrative delivery view; no parcel was shipped.',
+                        CAST(:event_payload AS JSONB)
+                    )
+                """),
+                {
+                    "incident_id": row["incident_id"],
+                    "order_id": payload.order_id,
+                    "event_payload": '{"customer_confirmed": true, "simulated": true}',
+                },
+            )
         db.commit()
     except HTTPException:
         db.rollback()
