@@ -1,3 +1,5 @@
+import json
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -6,6 +8,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .db import get_db
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/agent-tools",
@@ -378,7 +382,7 @@ def complete_sample_recovery(
     payload: CompleteSampleRecoveryIn,
     db: Session = Depends(get_db),
 ):
-    """Record a customer-authorized sample resolution without changing real fulfillment."""
+    """Record an idempotent, audited sample resolution without changing real fulfillment."""
     try:
         row = db.execute(
             text("""
@@ -408,41 +412,95 @@ def complete_sample_recovery(
         ):
             raise HTTPException(status_code=409, detail="This order has no eligible sample recovery.")
 
-        existing_event = db.execute(
+        idempotency_key = f"sample-delivery:{payload.order_id}"
+        existing = db.execute(
             text("""
-                SELECT event_id FROM events
-                WHERE order_id = :order_id
-                  AND event_type = 'sample_delivery_simulation'
-                LIMIT 1
+                SELECT status, result
+                FROM recovery_actions
+                WHERE idempotency_key = :idempotency_key
+                FOR UPDATE
             """),
-            {"order_id": payload.order_id},
-        ).first()
-        if not existing_event:
-            db.execute(
-                text("""
-                    INSERT INTO events (
-                        incident_id, order_id, source, event_type,
-                        severity, message, payload
-                    ) VALUES (
-                        :incident_id, :order_id, 'aftermath-demo',
-                        'sample_delivery_simulation', 'info',
-                        'Customer confirmed an illustrative delivery view; no parcel was shipped.',
-                        CAST(:event_payload AS JSONB)
-                    )
-                """),
-                {
-                    "incident_id": row["incident_id"],
-                    "order_id": payload.order_id,
-                    "event_payload": '{"customer_confirmed": true, "simulated": true}',
-                },
-            )
+            {"idempotency_key": idempotency_key},
+        ).mappings().first()
+
+        if existing:
+            if existing["status"] != "completed":
+                raise HTTPException(status_code=409, detail="A sample recovery action is already recorded but not complete.")
+            db.commit()
+            return {
+                "order_id": str(payload.order_id),
+                "demo_recovery_status": "completed",
+                "idempotent_replay": True,
+            }
+
+        db.execute(
+            text("""
+                INSERT INTO recovery_actions (
+                    incident_id, action_type, status, idempotency_key, input, result
+                ) VALUES (
+                    :incident_id, 'sample_delivery_simulation', 'completed',
+                    :idempotency_key, CAST(:input AS JSONB), CAST(:result AS JSONB)
+                )
+            """),
+            {
+                "incident_id": row["incident_id"],
+                "idempotency_key": idempotency_key,
+                "input": '{"customer_confirmed": true, "simulated": true}',
+                "result": '{"sample_resolution": "delivered", "simulated": true}',
+            },
+        )
+        db.execute(
+            text("""
+                INSERT INTO events (
+                    incident_id, order_id, source, event_type,
+                    severity, message, payload
+                ) VALUES (
+                    :incident_id, :order_id, 'aftermath-demo',
+                    'sample_delivery_simulation', 'info',
+                    'Customer confirmed an illustrative delivery view; no parcel was shipped.',
+                    CAST(:event_payload AS JSONB)
+                )
+                ON CONFLICT DO NOTHING
+            """),
+            {
+                "incident_id": row["incident_id"],
+                "order_id": payload.order_id,
+                "event_payload": '{"customer_confirmed": true, "simulated": true}',
+            },
+        )
+        db.execute(
+            text("""
+                INSERT INTO audit_log (
+                    incident_id, actor_type, actor_id, action, decision, reason, details
+                ) VALUES (
+                    :incident_id, 'customer', :customer_session,
+                    'complete_sample_recovery', 'recorded',
+                    'Customer requested the illustrative sample delivery; real fulfillment was not changed.',
+                    CAST(:details AS JSONB)
+                )
+            """),
+            {
+                "incident_id": row["incident_id"],
+                "customer_session": payload.customer_session,
+                "details": json.dumps({
+                    "order_id": str(payload.order_id),
+                    "simulated": True,
+                    "real_shipment_unchanged": True,
+                }),
+            },
+        )
         db.commit()
     except HTTPException:
         db.rollback()
         raise
     except Exception:
         db.rollback()
+        logger.exception("Could not record sample recovery for order %s", payload.order_id)
         raise HTTPException(status_code=500, detail="Sample recovery could not be recorded.")
 
-    return {"order_id": str(payload.order_id), "demo_recovery_status": "completed"}
+    return {
+        "order_id": str(payload.order_id),
+        "demo_recovery_status": "completed",
+        "idempotent_replay": False,
+    }
 
