@@ -59,6 +59,7 @@ def _shipment(db: Session, order_id: UUID):
 @router.get("/get_shipment")
 def get_shipment(
     order_id: UUID,
+    customer_session: str = Query(..., min_length=1, max_length=128),
     db: Session = Depends(get_db),
 ):
     """Return the business-level shipment record for an order."""
@@ -68,6 +69,7 @@ def get_shipment(
 @router.get("/get_shipment_status")
 def get_shipment_status(
     order_id: UUID,
+    customer_session: str = Query(..., min_length=1, max_length=128),
     db: Session = Depends(get_db),
 ):
     """Return the current shipment and order status."""
