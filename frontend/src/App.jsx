@@ -255,7 +255,7 @@ function App() {
             const timelineResponse = await fetch(
               `${API}/api/agent-tools/get_shipment_timeline?order_id=${encodeURIComponent(
                 shipment.order_id
-              )}`
+              )}&customer_session=${encodeURIComponent(customerSession)}`
             );
 
             if (!timelineResponse.ok) {
