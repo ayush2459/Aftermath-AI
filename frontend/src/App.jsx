@@ -703,12 +703,12 @@ function App() {
           <div className="section-heading">
             <div>
               <div className="eyebrow">
-                AFTERMATH AI / LIVE OPERATIONS
+                AFTERMATH AI / TEST STORE
               </div>
               <h2>Shipment <em>monitor.</em></h2>
               <p>
-                Track order status, inspect recorded events and
-                investigate shipment incidents.
+                These are sample orders. Shipment failures here are intentional
+                examples, and no physical parcels are sent.
               </p>
             </div>
 
@@ -751,6 +751,9 @@ function App() {
 
                 const stages = getRecoveryStages(shipment);
                 const rootCause = getRootCause(shipment);
+                const isDemoFailure = shipment.last_error?.startsWith(
+                  "Seeded demo failure:"
+                );
 
                 return (
                   <article
@@ -775,6 +778,17 @@ function App() {
                         {readable(shipment.shipment_status)}
                       </span>
                     </div>
+
+                    {isDemoFailure && (
+                      <div className="shipment-demo-note" role="note">
+                        <b>Test order · No parcel will be shipped</b>
+                        <p>
+                          This shipment failure is part of the demo. It shows
+                          how Aftermath AI investigates a shipping problem;
+                          it is not a delayed delivery.
+                        </p>
+                      </div>
+                    )}
 
                     <div className="shipment-products">
                       <div className="shipment-products-heading">
@@ -1019,9 +1033,9 @@ function App() {
                         <MessageCircle size={21} />
                       </div>
                       <div className="discord-help-copy">
-                        <span className="eyebrow">NEED HELP WITH THIS SHIPMENT?</span>
-                        <b>Resolve this issue with our Aftermath AI bot.</b>
-                        <p>Join our Discord community for help investigating shipment failures and guidance on the next recovery steps.</p>
+                        <span className="eyebrow">QUESTIONS ABOUT THIS STATUS?</span>
+                        <b>Ask our Aftermath AI bot to explain it.</b>
+                        <p>Get help understanding this shipment record and its recovery steps.</p>
                       </div>
                       <a
                         className="discord-help-button"

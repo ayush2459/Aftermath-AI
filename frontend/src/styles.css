@@ -590,3 +590,23 @@
     margin-top: 3px;
   }
 }
+.shipment-demo-note {
+  margin: 18px 0;
+  padding: 16px 18px;
+  border: 1px solid rgba(196, 243, 107, .45);
+  border-radius: 8px;
+  background: rgba(196, 243, 107, .09);
+}
+
+.shipment-demo-note b {
+  display: block;
+  color: #d8ff9d;
+  font-size: 14px;
+}
+
+.shipment-demo-note p {
+  margin: 7px 0 0;
+  color: #c3ccdb;
+  font-size: 12px;
+  line-height: 1.6;
+}
