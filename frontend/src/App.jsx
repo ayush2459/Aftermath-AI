@@ -44,7 +44,7 @@ const productImage = (product) => {
     ? path
     : `${API}${path.startsWith("/") ? path : `/${path}`}`;
 
-  return `${url}${url.includes("?") ? "&" : "?"}v=20261030-3`;
+  return `${url}${url.includes("?") ? "&" : "?"}v=20261031-1`;
 };
 
 const formatDate = (value) => {
@@ -200,6 +200,21 @@ function App() {
   });
 
   // Shipment dashboard state
+  const [dashboardClearCutoff] = useState(() => {
+    const key = "aftermath_dashboard_orders_cleared_at";
+    let cutoff = localStorage.getItem(key);
+    if (!cutoff) {
+      cutoff = new Date().toISOString();
+      localStorage.setItem(key, cutoff);
+    }
+    return cutoff;
+  });
+  const visibleDashboardOrders = (records) =>
+    records.filter((record) => {
+      const createdAt = Date.parse(record.order_created_at || "");
+      return Number.isFinite(createdAt) && createdAt >= Date.parse(dashboardClearCutoff);
+    });
+
   const [shipments, setShipments] = useState([]);
   const [shipmentsLoading, setShipmentsLoading] = useState(true);
   const [shipmentError, setShipmentError] = useState("");
@@ -237,7 +252,7 @@ function App() {
       }
 
       const data = await response.json();
-      const records = data.shipments || [];
+      const records = visibleDashboardOrders(data.shipments || []);
 
       setShipments(records);
 
@@ -316,7 +331,7 @@ function App() {
         const response = await fetch(`${API}/api/agent-tools/list_shipments?customer_session=${encodeURIComponent(customerSession)}`);
         if (response.ok && active) {
           const data = await response.json();
-          if (active) setShipments(data.shipments || []);
+          if (active) setShipments(visibleDashboardOrders(data.shipments || []));
         }
       } catch {
         // Keep the last known view until the next refresh.
@@ -776,7 +791,7 @@ function App() {
 
             <div className="hero-product">
               <img
-                src={`${API}/static/products/aurora-headphones.jpg`}
+                src={`${API}/static/products/aurora-headphones.jpg?v=20261031-1`}
                 alt="Aurora wireless headphones"
               />
             </div>
