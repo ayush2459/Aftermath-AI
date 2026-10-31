@@ -1,60 +1,75 @@
-# Phase 2: Discord operations integration
+# Phase 2: Discord operations and notification reliability
 
-## Current access constraints
+## Implemented
 
-The current operator can use an existing Discord bot but does not have:
-- Discord Developer Portal access for that application
-- permission to install applications/bots in the target server
-- permission to create channel webhooks
-- access to the host machine or bot source code
+- Discord bot REST delivery with server-side bot token and channel ID.
+- Incoming webhook fallback for environments that use webhooks.
+- Rich incident embeds with severity, incident/order/shipment state, value, failure reason and IDs.
+- Persistent PostgreSQL notification outbox.
+- Event-level idempotency using `dedupe_key`, so an incident can produce a creation alert and a separate shipment recovery update without duplicate delivery for the same event.
+- Bounded retries: at most five delivery attempts, exponential backoff starting at 30 seconds, and recovery of stale `sending` claims after five minutes.
+- A background outbox worker: `python -m app.notification_worker`.
+- Payment verification creates incident alerts for both the normal recovery path and critical inventory reconciliation.
+- Sample shipment recovery emits a separate operational update. It remains explicitly illustrative and does not change real carrier fulfillment.
+- Transport tests cover bot authentication, webhook fallback, missing configuration and Discord error responses.
+- CI runs for pushes to the Phase 2 branch and pull requests targeting the Phase 1 branch.
 
-The existing bot (Application ID `1565633171322576906`) therefore cannot be modified or authenticated by this project. An Application ID is public metadata, not an access credential.
+## Configuration
 
-## Existing Aftermath AI implementation
+Keep credentials only in `backend/.env` locally or the backend hosting provider's secret manager:
 
-Phase 1 already provides:
-- a `notification_deliveries` outbox table
-- `backend/app/notifications.py` to format and dispatch incident alerts
-- `DISCORD_WEBHOOK_URL` and `DISCORD_ALERT_TIMEOUT` configuration
-- delivery status tracking (`pending`, `sending`, `sent`, `failed`)
+```dotenv
+DISCORD_BOT_TOKEN=
+DISCORD_CHANNEL_ID=
+DISCORD_WEBHOOK_URL=
+DISCORD_ALERT_TIMEOUT=8
+```
 
-The service uses a Discord incoming webhook. It does not require a Discord bot token or a bot process. Do not add the existing third-party bot token to this project.
+The bot API is preferred when both bot token and channel ID are present. The webhook is used only as a fallback. Never commit real tokens or webhook URLs, and never expose them to frontend code.
 
-## Feasible integration path
+## Database migration
 
-1. Keep Discord delivery disabled while `DISCORD_WEBHOOK_URL` is unset.
-2. Continue developing and testing the outbox and notification formatting independently of Discord.
-3. When an authorized server administrator can create a webhook, obtain its URL through a secure channel and store it as a backend environment secret:
-   - local development: `backend/.env` (never commit this file)
-   - deployment: the backend hosting provider's environment/secrets settings
-4. Set `DISCORD_ALERT_TIMEOUT=8` (or another suitable bounded timeout).
-5. Trigger a controlled test incident in a non-production environment and verify:
-   - one alert appears in the intended channel
-   - `notification_deliveries.status` becomes `sent`
-   - failed delivery records an error and can be retried safely
-6. Rotate/revoke the webhook immediately if its URL is exposed.
+For an existing database, back it up first, then apply:
 
-## Required permissions from a server administrator
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f database/phase_2_notifications_migration.sql
+```
 
-At least one of these is required:
-- create an incoming webhook in the desired channel and securely provide its URL; or
-- install a separately managed Aftermath AI bot in the server with permission to send messages.
+The migration adds event-level idempotency to the existing outbox and preserves existing notification rows. Do not rerun the bootstrap `database/schema.sql` against an existing database.
 
-Without one of those actions, Discord cannot accept messages from Aftermath AI. There is no supported way to bypass server permissions using only an Application ID or ordinary bot visibility.
+Fresh databases should use the updated `database/schema.sql`.
 
-## Security and operational notes
+## Run the retry worker
 
-- Never commit webhook URLs, bot tokens, or other credentials.
-- Never put Discord credentials in frontend code or browser storage.
-- Do not log the full webhook URL.
-- Treat Discord as an alerting destination, not the source of truth; PostgreSQL outbox records remain authoritative.
-- Keep payment, order, customer, and shipment data in alerts to the minimum necessary. Avoid personal or payment-sensitive information.
-- The current Phase 1 delivery function sends incident alerts only; additional event types (payment lifecycle, shipment milestones, daily summaries) should be added through the same notification abstraction with tests.
+Start the API and the worker as separate processes using the same backend environment and database:
 
-## Phase 2 acceptance criteria
+```bash
+cd backend
+source .venv/bin/activate
+python -m app.notification_worker
+```
 
-- [ ] Notification formatting tests pass without network access.
-- [ ] Missing webhook configuration causes a safe no-send result.
-- [ ] Delivery success/failure updates the outbox accurately.
-- [ ] Retry behavior is bounded and does not create uncontrolled duplicate alerts.
-- [ ] A real Discord webhook test is completed only after an authorized administrator provisions the webhook.
+For a hosted deployment, configure a separate background worker service with start command `python -m app.notification_worker`, the same code revision, and the same environment variables/database URL as the API. A web service alone does not run this worker.
+
+The worker polls every 30 seconds, processes at most 25 due notifications per pass, and relies on atomic database claims to avoid concurrent duplicate sends. Failed rows stop retrying after five attempts and remain visible in the outbox for operator review.
+
+## Validation
+
+Run locally:
+
+```bash
+cd backend
+python -m compileall -q app
+pytest tests -q
+```
+
+The automated tests mock Discord transport; they do not require live Discord credentials. A separate live test already confirmed that the configured bot can post text and rich embeds to the target channel, and that one incident notification reached the outbox state `sent`.
+
+## Operational boundaries
+
+- Discord is an alerting destination, not the source of truth; PostgreSQL outbox rows remain authoritative.
+- Payment and shipment notifications are generated only from application events; no live carrier webhook/polling integration is added by this phase.
+- The sample recovery alert describes a simulated customer-facing action, not a parcel movement.
+- Payment notifications are only exercised against Razorpay Test Mode until a separate production readiness review.
+- The background worker must be deployed and kept running separately from the FastAPI web service.
+- No login system, customer accounts, RBAC, or access-management layer is introduced.
