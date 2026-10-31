@@ -14,6 +14,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .db import get_db
+from .ai_service import generate_diagnosis
+import json
 
 router = APIRouter(prefix="/api/agent-tools", tags=["GhostTrail investigation"])
 
@@ -188,4 +190,69 @@ def investigate_incident(
             "Seeded carrier allocation failures are simulated and do not represent live parcel movement.",
             "No business state was changed and no recovery action was executed.",
         ],
+    }
+
+
+
+@router.post("/diagnose/{incident_id}")
+def diagnose_incident(
+    incident_id: UUID,
+    customer_session: str = Query(..., min_length=1, max_length=128),
+    db: Session = Depends(get_db),
+):
+    """Generate and persist a validated advisory diagnosis; never execute actions."""
+    investigation = investigate_incident(
+        incident_id=incident_id,
+        customer_session=customer_session,
+        db=db,
+    )
+    diagnosis, provider = generate_diagnosis(
+        investigation["snapshot"],
+        investigation["findings"],
+    )
+    evidence_record = {
+        "schema_version": "1.0",
+        "provider": provider,
+        "diagnosis": diagnosis,
+        "finding_codes": [item["code"] for item in investigation["findings"]],
+    }
+    try:
+        row = db.execute(text("""
+            INSERT INTO evidence (incident_id, evidence_type, source, content)
+            VALUES (:incident_id, 'ghosttrail_diagnosis', :source, CAST(:content AS JSONB))
+            RETURNING evidence_id, created_at
+        """), {
+            "incident_id": incident_id,
+            "source": provider,
+            "content": json.dumps(evidence_record),
+        }).mappings().one()
+        db.execute(text("""
+            INSERT INTO audit_log (
+                incident_id, actor_type, actor_id, action, decision, reason, details
+            ) VALUES (
+                :incident_id, 'system', 'ghosttrail', 'generate_diagnosis', 'recorded',
+                'Advisory diagnosis generated from persisted application evidence.',
+                CAST(:details AS JSONB)
+            )
+        """), {
+            "incident_id": incident_id,
+            "details": json.dumps({
+                "evidence_id": str(row["evidence_id"]),
+                "provider": provider,
+                "schema_version": "1.0",
+                "business_state_changed": False,
+            }),
+        })
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Diagnosis could not be saved.")
+    return {
+        "incident_id": str(incident_id),
+        "diagnosis_id": str(row["evidence_id"]),
+        "created_at": row["created_at"],
+        "provider": provider,
+        "diagnosis": diagnosis,
+        "advisory_only": True,
+        "business_state_changed": False,
     }
