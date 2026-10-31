@@ -303,22 +303,10 @@ function App() {
 
   useEffect(() => {
     if (!isShipmentPage) return undefined;
-    let active = true;
-    const timer = window.setInterval(async () => {
-      try {
-        const response = await fetch(`${API}/api/agent-tools/list_shipments`);
-        if (response.ok && active) {
-          const data = await response.json();
-          if (active) setShipments(data.shipments || []);
-        }
-      } catch {
-        // Keep the last known view until the next refresh.
-      }
-    }, 5000);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
+    const timer = window.setInterval(() => {
+      refreshShipments();
+    }, 15000);
+    return () => window.clearInterval(timer);
   }, [isShipmentPage]);
 
   const restartDemo = () => {
@@ -341,13 +329,24 @@ function App() {
           customer_session: customerSession
         })
       });
+      const recovery = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error("This sample order could not be updated from this browser.");
+        throw new Error(recovery.detail || "This sample order could not be updated from this browser.");
+      }
+      if (
+        recovery.order_id !== recoveryOrderId ||
+        recovery.demo_recovery_status !== "completed"
+      ) {
+        throw new Error("The backend did not confirm sample recovery completion.");
       }
 
       setRecoveryComplete(true);
       setSampleViewOrderId(recoveryOrderId);
-      setRecoveryMessage("The sample recovery is complete. Your order view is updating.");
+      setRecoveryMessage(
+        recovery.idempotent_replay
+          ? "This sample resolution was already recorded. Showing the existing sample view."
+          : "The sample recovery is recorded. Showing the illustrative delivery journey."
+      );
       const url = new URL(window.location.href);
       url.searchParams.delete("recover");
       url.searchParams.set("view", "sample");
