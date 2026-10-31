@@ -18,6 +18,10 @@ class CompleteSampleRecoveryIn(BaseModel):
     customer_session: str = Field(min_length=1, max_length=128)
 
 
+class CustomerSessionQuery(BaseModel):
+    customer_session: str = Field(min_length=1, max_length=128)
+
+
 def _shipment(db: Session, order_id: UUID):
     """Fetch the shipment and associated order details."""
     row = db.execute(
