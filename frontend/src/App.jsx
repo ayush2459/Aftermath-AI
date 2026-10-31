@@ -65,36 +65,48 @@ const readable = (value) =>
     .replaceAll(".", " ");
 
 const demoSteps = [
-  "Order placed",
-  "Dispatched",
-  "Shipped",
-  "Out for delivery",
-  "Delivered"
+  { title: "Payment verified", description: "Test payment verified for this sample order." },
+  { title: "Carrier allocated", description: "A sample carrier is assigned in this illustration." },
+  { title: "Shipment created", description: "The sample parcel is registered for delivery." },
+  { title: "In transit", description: "The sample parcel moves through the delivery network." },
+  { title: "Out for delivery", description: "The sample parcel is dispatched for final delivery." },
+  { title: "Delivered", description: "The sample delivery is complete." }
 ];
 
 function DemoShipmentCard({ shipment, now, startedAt, onRestart }) {
-  const stage = Math.min(2 + Math.floor(Math.max(0, now - startedAt) / 15000), 4);
+  const stage = startedAt === null
+    ? demoSteps.length - 1
+    : Math.min(Math.floor(Math.max(0, now - startedAt) / 6000), demoSteps.length - 1);
   const trackingNumber = sampleTrackingNumber(shipment);
 
   return (
     <article className="shipment-card demo-shipment-card">
       <div className="shipment-card-top">
         <div>
-          <span className="eyebrow">SAMPLE ORDER REFERENCE</span>
+          <span className="eyebrow">ORDER REFERENCE</span>
           <h3>{shipment.order_id}</h3>
         </div>
-        <span className="shipment-status demo-status">{demoSteps[stage]}</span>
+        <span className="shipment-status demo-status">{demoSteps[stage].title}</span>
       </div>
 
       <div className="shipment-demo-note" role="note">
-        <b>Sample delivery simulation · No real parcel is being shipped</b>
-        <p>This preview advances on this page every 15 seconds. Its tracking number and delivery stages are examples, not carrier updates.</p>
+        <b>Illustrative delivery demo · No real parcel is being shipped</b>
+        <p>The successful delivery shown below is a sample scenario. It does not change this order's recorded test incident or represent carrier updates.</p>
       </div>
 
-      <div className="demo-tracking-number">
-        <small>SAMPLE TRACKING NUMBER</small>
-        <b>{trackingNumber}</b>
-        <span>Paste this number into the search box above to find this test order.</span>
+      <div className="demo-success-summary">
+        <div className="demo-success-icon"><Check size={23} /></div>
+        <div>
+          <h4>{stage === demoSteps.length - 1 ? "Shipment delivered successfully" : `Sample shipment: ${demoSteps[stage].title}`}</h4>
+          <p>In this sample journey, payment is verified, a carrier is allocated, and the parcel progresses through delivery.</p>
+        </div>
+      </div>
+
+      <div className="shipment-metrics">
+        <div><small>ORDER STATUS</small><b>{demoSteps[stage].title}</b></div>
+        <div><small>INCIDENT STATUS</small><b>{stage === demoSteps.length - 1 ? "Resolved in demo" : "In progress in demo"}</b></div>
+        <div><small>PAYMENT STATUS</small><b>Verified test payment</b></div>
+        <div><small>ORDER VALUE</small><b>{money(shipment.total_paise)}</b></div>
       </div>
 
       <div className="shipment-products">
@@ -121,23 +133,41 @@ function DemoShipmentCard({ shipment, now, startedAt, onRestart }) {
         </div>
       </div>
 
-      <div className="shipment-metrics">
-        <div><small>SAMPLE DELIVERY STATUS</small><b>{demoSteps[stage]}</b></div>
-        <div><small>ORDER VALUE</small><b>{money(shipment.total_paise)}</b></div>
+      <div className="demo-tracking-number">
+        <small>TRACKING NUMBER</small>
+        <b>{trackingNumber}</b>
+        <span>Illustrative tracking reference only. Use an actual carrier number when carrier integration is available.</span>
       </div>
 
       <div className="demo-journey">
         <div className="timeline-heading">
-          <div><span className="eyebrow">SAMPLE DELIVERY JOURNEY</span><h4>Tracking timeline</h4></div>
-          <button type="button" className="demo-restart" onClick={onRestart}>Restart demo</button>
+          <div><span className="eyebrow">SAMPLE SHIPMENT TIMELINE</span><h4>Delivery journey</h4></div>
+          <button type="button" className="demo-restart" onClick={onRestart}>Replay journey</button>
         </div>
         {demoSteps.map((step, index) => (
-          <div className={`demo-journey-step ${index < stage ? "complete" : index === stage ? "current" : "upcoming"}`} key={step}>
-            <span className="demo-journey-marker">{index < stage ? <Check size={14} /> : index + 1}</span>
-            <b>{step}</b>
-            <small>{index < stage ? "Completed in demo" : index === stage ? "Current sample stage" : "Coming up in demo"}</small>
+          <div className={`demo-journey-step ${index <= stage ? "complete" : "upcoming"}`} key={step.title}>
+            <span className="demo-journey-marker">{index <= stage ? <Check size={14} /> : index + 1}</span>
+            <div className="demo-journey-copy"><b>{step.title}</b><p>{step.description}</p></div>
+            <small>{index <= stage ? "Completed" : "Coming up"}</small>
           </div>
         ))}
+      </div>
+
+      <div className="demo-recovery-status">
+        <span className="eyebrow">AFTERMATH AI / RECOVERY STATUS</span>
+        <b>{stage === demoSteps.length - 1 ? "Sample order successfully fulfilled" : "Sample order progressing"}</b>
+        <p>No active shipment incident in this illustration. The recorded test incident remains unchanged.</p>
+      </div>
+
+      <div className="discord-help-card">
+        <div className="discord-help-icon"><MessageCircle size={21} /></div>
+        <div className="discord-help-copy">
+          <span className="eyebrow">NEED HELP WITH THIS SHIPMENT?</span>
+          <b>Ask our Aftermath AI bot for shipment information and support.</b>
+        </div>
+        <a className="discord-help-button" href="https://discord.gg/6sCDwusbw" target="_blank" rel="noopener noreferrer">
+          Open Aftermath AI on Discord <ArrowRight size={15} />
+        </a>
       </div>
     </article>
   );
@@ -170,13 +200,7 @@ function App() {
   const [shipmentError, setShipmentError] = useState("");
   const [trackingQuery, setTrackingQuery] = useState("");
   const [demoNow, setDemoNow] = useState(Date.now);
-  const [demoStartedAt, setDemoStartedAt] = useState(() => {
-    const stored = Number(sessionStorage.getItem("aftermath_demo_delivery_started_at"));
-    if (stored > 0) return stored;
-    const started = Date.now();
-    sessionStorage.setItem("aftermath_demo_delivery_started_at", String(started));
-    return started;
-  });
+  const [demoStartedAt, setDemoStartedAt] = useState(null);
   const [timelines, setTimelines] = useState({});
   const [timelineErrors, setTimelineErrors] = useState({});
 
@@ -268,7 +292,6 @@ function App() {
 
   const restartDemo = () => {
     const started = Date.now();
-    sessionStorage.setItem("aftermath_demo_delivery_started_at", String(started));
     setDemoStartedAt(started);
     setDemoNow(started);
   };

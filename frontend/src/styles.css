@@ -80,6 +80,48 @@
   color: #c4f36b;
 }
 
+.demo-success-summary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 0 4px;
+}
+
+.demo-success-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #c4f36b;
+  color: #15200e;
+}
+
+.demo-success-summary h4 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.demo-success-summary p,
+.demo-recovery-status p {
+  margin: 7px 0 0;
+  color: #a3adbf;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.demo-recovery-status {
+  display: grid;
+  gap: 7px;
+  padding: 20px 0;
+  border-top: 1px solid rgba(255,255,255,.09);
+}
+
+.demo-recovery-status b {
+  font-size: 15px;
+}
+
 .demo-tracking-number {
   display: grid;
   gap: 7px;
@@ -147,9 +189,19 @@
   color: #15200e;
 }
 
-.demo-journey-step b {
+.demo-journey-copy {
   flex: 1;
+}
+
+.demo-journey-copy b {
   font-size: 13px;
+}
+
+.demo-journey-copy p {
+  margin: 5px 0 0;
+  color: #a3adbf;
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .demo-journey-step small {
