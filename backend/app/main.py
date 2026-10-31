@@ -280,8 +280,8 @@ def create_order(payload: OrderCreateIn, db: Session = Depends(get_db)):
                 }),
             })
 
-        # The database transaction has committed.
-        # Discord failure must never undo a successfully created order.
+        # The database transaction has committed. Discord delivery is attempted
+        # independently so a webhook failure never undoes the order/incident.
         try:
             dispatch_discord_alert(db, incident_id)
         except Exception:
