@@ -65,16 +65,17 @@ const readable = (value) =>
     .replaceAll(".", " ");
 
 const demoSteps = [
-  { title: "Payment verified", description: "Test payment verified for this sample order." },
-  { title: "Carrier allocated", description: "A sample carrier is assigned in this illustration." },
-  { title: "Shipment created", description: "The sample parcel is registered for delivery." },
-  { title: "In transit", description: "The sample parcel moves through the delivery network." },
-  { title: "Out for delivery", description: "The sample parcel is dispatched for final delivery." },
-  { title: "Delivered", description: "The sample delivery is complete." }
+  { title: "Payment verified", description: "Test payment verified for this demo order." },
+  { title: "Carrier allocated", description: "A carrier is assigned in this illustration." },
+  { title: "Shipment created", description: "The illustrated parcel is registered for delivery." },
+  { title: "In transit", description: "The illustrated parcel moves through the delivery network." },
+  { title: "Out for delivery", description: "The illustrated parcel is dispatched for final delivery." },
+  { title: "Delivered", description: "The illustrated delivery is complete." }
 ];
 
 function DemoShipmentCard({ shipment, now, startedAt, onRestart }) {
   const stage = sampleJourneyStage(startedAt, now, demoSteps.length);
+  const journeyComplete = stage === demoSteps.length - 1;
   const trackingNumber = sampleTrackingNumber(shipment);
 
   return (
@@ -84,28 +85,47 @@ function DemoShipmentCard({ shipment, now, startedAt, onRestart }) {
           <span className="eyebrow">ORDER REFERENCE</span>
           <h3>{shipment.order_id}</h3>
         </div>
-        <span className="shipment-status demo-status">{demoSteps[stage].title}</span>
+        <span className={`shipment-status ${journeyComplete ? "demo-status" : "demo-in-progress"}`}>{demoSteps[stage].title}</span>
       </div>
 
       <div className="shipment-demo-note" role="note">
         <b>Illustrative delivery demo · No real parcel is being shipped</b>
-        <p>This illustrative outcome appears only after the sample recovery is completed. It does not change the recorded shipment or represent carrier updates.</p>
+        <p>This journey shows what a successful recovery would look like. It does not change the recorded shipment or represent carrier updates.</p>
       </div>
 
-      <div className="demo-success-summary">
-        <div className="demo-success-icon"><Check size={23} /></div>
-        <div>
-          <h4>{stage === demoSteps.length - 1 ? "Shipment delivered successfully" : `Sample shipment: ${demoSteps[stage].title}`}</h4>
-          <p>In this sample journey, payment is verified, a carrier is allocated, and the parcel progresses through delivery.</p>
+      <div className="demo-journey" aria-live="polite">
+        <div className="timeline-heading">
+          <div><span className="eyebrow">DEMO SHIPMENT TIMELINE</span><h4>Delivery journey</h4></div>
+          <button type="button" className="demo-restart" onClick={onRestart}>Replay journey</button>
         </div>
+        {demoSteps.map((step, index) => {
+          const completed = index < stage || (journeyComplete && index === stage);
+          const current = index === stage && !journeyComplete;
+          return (
+            <div className={`demo-journey-step ${completed ? "complete" : current ? "current" : "upcoming"}`} key={step.title}>
+              <span className="demo-journey-marker">{completed ? <Check size={14} /> : index + 1}</span>
+              <div className="demo-journey-copy"><b>{step.title}</b><p>{step.description}</p></div>
+              <small>{completed ? "Completed" : current ? "In progress" : "Coming up"}</small>
+            </div>
+          );
+        })}
       </div>
 
-      <div className="shipment-metrics">
-        <div><small>ORDER STATUS</small><b>{demoSteps[stage].title}</b></div>
-        <div><small>INCIDENT STATUS</small><b>{stage === demoSteps.length - 1 ? "Resolved in demo" : "In progress in demo"}</b></div>
-        <div><small>PAYMENT STATUS</small><b>Verified test payment</b></div>
-        <div><small>ORDER VALUE</small><b>{money(shipment.total_paise)}</b></div>
-      </div>
+      {journeyComplete && <>
+        <div className="demo-success-summary">
+          <div className="demo-success-icon"><Check size={23} /></div>
+          <div>
+            <h4>Shipment delivered successfully</h4>
+            <p>Illustrative outcome for this test order. No parcel was shipped.</p>
+          </div>
+        </div>
+
+        <div className="shipment-metrics">
+          <div><small>ORDER STATUS</small><b>Delivered in demo</b></div>
+          <div><small>INCIDENT STATUS</small><b>Resolved in demo</b></div>
+          <div><small>PAYMENT STATUS</small><b>Verified test payment</b></div>
+          <div><small>ORDER VALUE</small><b>{money(shipment.total_paise)}</b></div>
+        </div>
 
       <div className="shipment-products">
         <div className="shipment-products-heading">
@@ -132,29 +152,15 @@ function DemoShipmentCard({ shipment, now, startedAt, onRestart }) {
       </div>
 
       <div className="demo-tracking-number">
-        <small>TRACKING NUMBER</small>
+        <small>DEMO TRACKING NUMBER</small>
         <b>{trackingNumber}</b>
         <span>Illustrative tracking reference only. Use an actual carrier number when carrier integration is available.</span>
       </div>
 
-      <div className="demo-journey">
-        <div className="timeline-heading">
-          <div><span className="eyebrow">SAMPLE SHIPMENT TIMELINE</span><h4>Delivery journey</h4></div>
-          <button type="button" className="demo-restart" onClick={onRestart}>Replay journey</button>
-        </div>
-        {demoSteps.map((step, index) => (
-          <div className={`demo-journey-step ${index <= stage ? "complete" : "upcoming"}`} key={step.title}>
-            <span className="demo-journey-marker">{index <= stage ? <Check size={14} /> : index + 1}</span>
-            <div className="demo-journey-copy"><b>{step.title}</b><p>{step.description}</p></div>
-            <small>{index <= stage ? "Completed" : "Coming up"}</small>
-          </div>
-        ))}
-      </div>
-
       <div className="demo-recovery-status">
         <span className="eyebrow">AFTERMATH AI / RECOVERY STATUS</span>
-        <b>{stage === demoSteps.length - 1 ? "Sample order successfully fulfilled" : "Sample order progressing"}</b>
-        <p>No active shipment incident in this illustration. The recorded test incident remains unchanged.</p>
+        <b>Demo order successfully fulfilled</b>
+        <p>The demo journey is complete. The recorded test incident remains unchanged.</p>
       </div>
 
       <div className="discord-help-card">
@@ -167,6 +173,7 @@ function DemoShipmentCard({ shipment, now, startedAt, onRestart }) {
           Open Aftermath AI on Discord <ArrowRight size={15} />
         </a>
       </div>
+      </>}
     </article>
   );
 }
@@ -321,9 +328,9 @@ function App() {
     };
   }, [isShipmentPage]);
 
-  const restartDemo = () => {
+  const restartDemo = (orderId) => {
     const started = Date.now();
-    setDemoStartedAt(started);
+    setDemoStartedAt({ orderId, started });
     setDemoNow(started);
   };
 
@@ -342,17 +349,18 @@ function App() {
         })
       });
       if (!response.ok) {
-        throw new Error("This sample order could not be updated from this browser.");
+        throw new Error("This demo order could not be updated from this browser.");
       }
 
       setRecoveryComplete(true);
-      setSampleViewOrderId(recoveryOrderId);
-      setRecoveryMessage("The sample recovery is complete. Your order view is updating.");
       const url = new URL(window.location.href);
       url.searchParams.delete("recover");
       url.searchParams.set("view", "sample");
       window.history.replaceState(null, "", url);
       await refreshShipments();
+      restartDemo(recoveryOrderId);
+      setSampleViewOrderId(recoveryOrderId);
+      setRecoveryMessage("The demo journey is starting. The final result will appear after each stage.");
     } catch (error) {
       setRecoveryMessage(error.message);
     } finally {
@@ -925,7 +933,7 @@ function App() {
               </div>
               <h2>Shipment <em>monitor.</em></h2>
               <p>
-                Explore sample delivery stages and tracking numbers. These
+                Explore demo delivery stages and tracking numbers. These
                 updates are simulated; no physical parcels are sent.
               </p>
             </div>
@@ -946,18 +954,18 @@ function App() {
               type="search"
               value={trackingQuery}
               onChange={(event) => setTrackingQuery(event.target.value)}
-              placeholder="Enter an order reference or sample tracking number"
+              placeholder="Enter an order reference or demo tracking number"
             />
           </label>
 
           {recoveryOrderId && !recoveryComplete && (
             <div className="sample-recovery-prompt" role="note">
               <div>
-                <b>Ready to view the sample resolution?</b>
-                <p>Confirm to show the illustrative delivered journey for this test order. No real shipment or carrier record will change.</p>
+                <b>Ready to view the recovery journey?</b>
+                <p>See the illustrative delivery stages, followed by the final result. No real shipment or carrier record will change.</p>
               </div>
               <button type="button" onClick={completeSampleRecovery} disabled={recoveryBusy}>
-                {recoveryBusy ? "Updating sample..." : "Show sample resolution"}
+                {recoveryBusy ? "Starting journey..." : "Show resolution"}
               </button>
             </div>
           )}
@@ -991,8 +999,10 @@ function App() {
                     key={shipment.shipment_id}
                     shipment={shipment}
                     now={demoNow}
-                    startedAt={demoStartedAt}
-                    onRestart={restartDemo}
+                    startedAt={demoStartedAt?.orderId === shipment.order_id
+                      ? demoStartedAt.started
+                      : Date.parse(shipment.demo_recovery_started_at)}
+                    onRestart={() => restartDemo(shipment.order_id)}
                   />;
                 }
 
@@ -1314,7 +1324,7 @@ function App() {
                         <b>{shipment.tracking_number
                           ? "Carrier tracking number"
                           : isDemoFailure
-                            ? "Sample tracking number"
+                            ? "Demo tracking number"
                             : "Tracking number"}</b>
                         <span>{shipment.tracking_number ||
                           sampleTrackingNumber(shipment) ||

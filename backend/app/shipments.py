@@ -264,6 +264,7 @@ def list_shipments(db: Session = Depends(get_db)):
                 s.updated_at AS shipment_updated_at,
 
                 demo_recovery.status AS demo_recovery_status,
+                demo_recovery.started_at AS demo_recovery_started_at,
 
                 i.incident_id,
                 i.status AS incident_status,
@@ -285,10 +286,12 @@ def list_shipments(db: Session = Depends(get_db)):
                 ON i.order_id = o.order_id
 
             LEFT JOIN LATERAL (
-                SELECT 'completed'::text AS status
+                SELECT 'completed'::text AS status,
+                       recovery_event.created_at AS started_at
                 FROM events recovery_event
                 WHERE recovery_event.order_id = o.order_id
                   AND recovery_event.event_type = 'sample_delivery_simulation'
+                ORDER BY recovery_event.created_at DESC
                 LIMIT 1
             ) demo_recovery ON TRUE
 

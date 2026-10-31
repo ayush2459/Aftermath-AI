@@ -80,6 +80,11 @@
   color: #c4f36b;
 }
 
+.shipment-status.demo-in-progress {
+  background: rgba(91,170,255,.14);
+  color: #8fc4ff;
+}
+
 .demo-success-summary {
   display: flex;
   align-items: center;
