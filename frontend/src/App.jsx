@@ -1,6 +1,6 @@
 
 import React, { useEffect, useMemo, useState } from "react";
-import { sampleTrackingNumber } from "./demoTracking";
+import { sampleJourneyStage, sampleTrackingNumber } from "./demoTracking";
 import {
   ArrowRight,
   Check,
@@ -74,9 +74,9 @@ const demoSteps = [
 ];
 
 function DemoShipmentCard({ shipment, now, startedAt, onRestart }) {
-  const stage = startedAt === null
-    ? demoSteps.length - 1
-    : Math.min(Math.floor(Math.max(0, now - startedAt) / 6000), demoSteps.length - 1);
+  const recordedStart = Date.parse(shipment.sample_journey_started_at || "");
+  const journeyStart = startedAt ?? recordedStart;
+  const stage = sampleJourneyStage(journeyStart, now, demoSteps.length);
   const trackingNumber = sampleTrackingNumber(shipment);
 
   return (
@@ -91,7 +91,7 @@ function DemoShipmentCard({ shipment, now, startedAt, onRestart }) {
 
       <div className="shipment-demo-note" role="note">
         <b>Illustrative delivery demo · No real parcel is being shipped</b>
-        <p>The successful delivery shown below is a sample scenario. It does not change this order's recorded test incident or represent carrier updates.</p>
+        <p>This sample journey starts automatically when the app records a test shipment failure. It does not change the recorded incident or represent carrier updates.</p>
       </div>
 
       <div className="demo-success-summary">
