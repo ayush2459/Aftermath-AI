@@ -14,6 +14,7 @@ from .db import get_db
 from .schemas import OrderCreateIn, OrderCreatedOut, ProductOut
 from .payments import router as razorpay_router
 from .shipments import router as shipment_tools_router
+from .investigation import router as investigation_router
 from .notifications import dispatch_discord_alert
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ STATIC_DIR = BASE_DIR / "static"
 app = FastAPI(
     title="Aftermath AI API",
     description="Hackathon demo API for order failure investigation and recovery.",
-    version="0.3.0",
+    version="0.4.0",
 )
 
 app.add_middleware(
@@ -40,6 +41,7 @@ if STATIC_DIR.exists():
 
 app.include_router(razorpay_router)
 app.include_router(shipment_tools_router)
+app.include_router(investigation_router)
 
 
 @app.get("/")
