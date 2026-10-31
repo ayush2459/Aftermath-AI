@@ -4,6 +4,7 @@ import { isSeededDemoFailure, sampleJourneyStage, sampleTrackingNumber, shouldOp
 
 test("sample tracking references are stable and only created for seeded failures", () => {
   const shipment = {
+    order_id: "0fe82451-0761-4f54-88a9-f94e7feb9147",
     shipment_id: "10dcf829-777b-43b7-8f1c-f2f058b90ba3",
     shipment_status: "failed",
     last_error: "Seeded demo failure: carrier allocation timeout"
@@ -17,8 +18,10 @@ test("sample tracking references are stable and only created for seeded failures
   assert.equal(sampleTrackingNumber(shipment), "DEMO-10DCF829777B43B78F1CF2F058B90BA3");
   assert.equal(sampleTrackingNumber({ ...shipment, last_error: null }), null);
   assert.equal(sampleTrackingNumber({ last_error: shipment.last_error }), null);
-  assert.equal(shouldShowSampleResolution(shipment), false);
-  assert.equal(shouldShowSampleResolution({ ...shipment, demo_recovery_status: "completed" }), true);
+  assert.equal(shouldShowSampleResolution(shipment, shipment.order_id), false);
+  assert.equal(shouldShowSampleResolution({ ...shipment, demo_recovery_status: "completed" }, null), false);
+  assert.equal(shouldShowSampleResolution({ ...shipment, demo_recovery_status: "completed" }, "another-order"), false);
+  assert.equal(shouldShowSampleResolution({ ...shipment, demo_recovery_status: "completed" }, shipment.order_id), true);
 });
 
 test("sample journey advances from the recorded failure time", () => {

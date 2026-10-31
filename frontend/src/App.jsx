@@ -203,6 +203,10 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     return params.get("recover") === "1" ? params.get("order") : null;
   });
+  const [sampleViewOrderId, setSampleViewOrderId] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("view") === "sample" ? params.get("order") : null;
+  });
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [recoveryMessage, setRecoveryMessage] = useState("");
   const [recoveryComplete, setRecoveryComplete] = useState(false);
@@ -342,9 +346,11 @@ function App() {
       }
 
       setRecoveryComplete(true);
+      setSampleViewOrderId(recoveryOrderId);
       setRecoveryMessage("The sample recovery is complete. Your order view is updating.");
       const url = new URL(window.location.href);
       url.searchParams.delete("recover");
+      url.searchParams.set("view", "sample");
       window.history.replaceState(null, "", url);
       await refreshShipments();
     } catch (error) {
@@ -980,7 +986,7 @@ function App() {
           ) : (
             <div className="shipment-list">
               {matchingShipments.map((shipment) => {
-                if (shouldShowSampleResolution(shipment)) {
+                if (shouldShowSampleResolution(shipment, sampleViewOrderId)) {
                   return <DemoShipmentCard
                     key={shipment.shipment_id}
                     shipment={shipment}
@@ -1478,7 +1484,7 @@ function App() {
 
             <p>
               {result.sampleShipmentFailure
-                ? "Your test payment was verified. The sample shipment journey is ready to view."
+                ? "Your test payment was verified, but shipment creation failed. View the order for details and support."
                 : "Your test payment was verified. Check this order's shipment status for the next update."}
             </p>
 
@@ -1495,7 +1501,7 @@ function App() {
 
               <div>
                 <small>ORDER STATUS</small>
-                <b>{result.sampleShipmentFailure ? "Sample recovery" : "Check shipment status"}</b>
+                <b>{result.sampleShipmentFailure ? "Shipment failed" : "Check shipment status"}</b>
               </div>
             </div>
 
@@ -1503,7 +1509,7 @@ function App() {
               <Sparkles size={18} />
 
               <span>
-                <b>{result.sampleShipmentFailure ? "Sample recovery workflow started" : "Order status"}</b>
+                <b>{result.sampleShipmentFailure ? "Shipment needs attention" : "Order status"}</b>
                 <small>
                   Open this order's shipment page to see its latest status.
                 </small>

@@ -13,8 +13,10 @@ export const sampleTrackingNumber = (shipment) => {
   return `DEMO-${shipment.shipment_id.replaceAll("-", "").toUpperCase()}`;
 };
 
-export const shouldShowSampleResolution = (shipment) =>
-  shipment?.demo_recovery_status === "completed" &&
+export const shouldShowSampleResolution = (shipment, sampleViewOrderId) =>
+  Boolean(sampleViewOrderId) &&
+  shipment?.order_id === sampleViewOrderId &&
+  shipment.demo_recovery_status === "completed" &&
   Boolean(sampleTrackingNumber(shipment));
 
 export const sampleJourneyStage = (startedAt, now, stepCount = 6) => {
