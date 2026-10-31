@@ -729,7 +729,7 @@ function App() {
     ].some((value) => value?.toLowerCase().includes(query));
   });
 
-  if (window.location.pathname.replace(/\\/+$/, "") === "/investigation") return <GhostTrail />;
+  if (window.location.pathname.replace(/\/+$/, "") === "/investigation") return <GhostTrail />;
 
   return (
     <div className={`app-shell ${isShipmentPage ? "shipment-page" : "storefront-page"}`} >
