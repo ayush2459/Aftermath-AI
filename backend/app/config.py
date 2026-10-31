@@ -8,14 +8,22 @@ DATABASE_URL = os.getenv(
     "postgresql+psycopg://postgres:CHANGE_ME@localhost:5432/aftermath_ai",
 )
 
-CORS_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv(
-        "CORS_ORIGINS",
-        "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:5176,http://127.0.0.1:5174,http://127.0.0.1:5176",
-    ).split(",")
-    if origin.strip()
+LOCAL_CORS_ORIGINS = [
+    f"http://{host}:{port}"
+    for host in ("localhost", "127.0.0.1")
+    for port in (3000, 5173, 5174, 5176)
 ]
+
+
+def cors_origins(configured: str) -> list[str]:
+    """Keep the local test storefront reachable alongside configured origins."""
+    return list(dict.fromkeys([
+        *LOCAL_CORS_ORIGINS,
+        *(origin.strip() for origin in configured.split(",") if origin.strip()),
+    ]))
+
+
+CORS_ORIGINS = cors_origins(os.getenv("CORS_ORIGINS", ""))
 
 RAZORPAY_MODE = os.getenv("RAZORPAY_MODE", "test").lower()
 RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "")
