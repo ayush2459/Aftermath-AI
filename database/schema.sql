@@ -98,10 +98,3 @@ DO $$ DECLARE t TEXT; BEGIN
   EXECUTE format('CREATE TRIGGER trg_%I_updated_at BEFORE UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION set_updated_at()', t, t);
  END LOOP;
 END $$;
-
-
--- Apply additive migrations so a fresh bootstrap matches the backend and AI-agent schema.
--- These files are executed by psql; see database/README.md.
-\ir razorpay_test_mode_migration.sql
-\ir shipment_agent_tools_migration.sql
-\ir agent_recovery_foundation_migration.sql
