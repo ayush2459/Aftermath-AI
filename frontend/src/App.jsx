@@ -74,9 +74,7 @@ const demoSteps = [
 ];
 
 function DemoShipmentCard({ shipment, now, startedAt, onRestart }) {
-  const recordedStart = Date.parse(shipment.sample_journey_started_at || "");
-  const journeyStart = startedAt ?? recordedStart;
-  const stage = sampleJourneyStage(journeyStart, now, demoSteps.length);
+  const stage = sampleJourneyStage(startedAt, now, demoSteps.length);
   const trackingNumber = sampleTrackingNumber(shipment);
 
   return (
@@ -91,7 +89,7 @@ function DemoShipmentCard({ shipment, now, startedAt, onRestart }) {
 
       <div className="shipment-demo-note" role="note">
         <b>Illustrative delivery demo · No real parcel is being shipped</b>
-        <p>This sample journey starts automatically when the app records a test shipment failure. It does not change the recorded incident or represent carrier updates.</p>
+        <p>This illustrative outcome appears only after the sample recovery is completed. It does not change the recorded shipment or represent carrier updates.</p>
       </div>
 
       <div className="demo-success-summary">
@@ -201,6 +199,13 @@ function App() {
   const [trackingQuery, setTrackingQuery] = useState(() =>
     new URLSearchParams(window.location.search).get("order") || ""
   );
+  const [recoveryOrderId] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("recover") === "1" ? params.get("order") : null;
+  });
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [recoveryMessage, setRecoveryMessage] = useState("");
+  const [recoveryComplete, setRecoveryComplete] = useState(false);
   const [demoNow, setDemoNow] = useState(Date.now);
   const [demoStartedAt, setDemoStartedAt] = useState(null);
   const [timelines, setTimelines] = useState({});
@@ -292,10 +297,61 @@ function App() {
     return () => window.clearInterval(timer);
   }, [isShipmentPage]);
 
+  useEffect(() => {
+    if (!isShipmentPage) return undefined;
+    let active = true;
+    const timer = window.setInterval(async () => {
+      try {
+        const response = await fetch(`${API}/api/agent-tools/list_shipments`);
+        if (response.ok && active) {
+          const data = await response.json();
+          if (active) setShipments(data.shipments || []);
+        }
+      } catch {
+        // Keep the last known view until the next refresh.
+      }
+    }, 5000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [isShipmentPage]);
+
   const restartDemo = () => {
     const started = Date.now();
     setDemoStartedAt(started);
     setDemoNow(started);
+  };
+
+  const completeSampleRecovery = async () => {
+    if (!recoveryOrderId || recoveryBusy) return;
+    setRecoveryBusy(true);
+    setRecoveryMessage("");
+
+    try {
+      const response = await fetch(`${API}/api/agent-tools/complete_sample_recovery`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order_id: recoveryOrderId,
+          customer_session: customerSession
+        })
+      });
+      if (!response.ok) {
+        throw new Error("This sample order could not be updated from this browser.");
+      }
+
+      setRecoveryComplete(true);
+      setRecoveryMessage("The sample recovery is complete. Your order view is updating.");
+      const url = new URL(window.location.href);
+      url.searchParams.delete("recover");
+      window.history.replaceState(null, "", url);
+      await refreshShipments();
+    } catch (error) {
+      setRecoveryMessage(error.message);
+    } finally {
+      setRecoveryBusy(false);
+    }
   };
 
   // Fetch products
@@ -888,6 +944,19 @@ function App() {
             />
           </label>
 
+          {recoveryOrderId && !recoveryComplete && (
+            <div className="sample-recovery-prompt" role="note">
+              <div>
+                <b>Ready to view the sample resolution?</b>
+                <p>Confirm to show the illustrative delivered journey for this test order. No real shipment or carrier record will change.</p>
+              </div>
+              <button type="button" onClick={completeSampleRecovery} disabled={recoveryBusy}>
+                {recoveryBusy ? "Updating sample..." : "Show sample resolution"}
+              </button>
+            </div>
+          )}
+          {recoveryMessage && <p className="sample-recovery-message" role="status">{recoveryMessage}</p>}
+
           {shipmentsLoading ? (
             <div className="loading-state">
               Loading shipment records
@@ -1215,7 +1284,7 @@ function App() {
                       <div className="discord-help-copy">
                         <span className="eyebrow">QUESTIONS ABOUT THIS STATUS?</span>
                         <b>Ask our Aftermath AI bot to explain it.</b>
-                        <p>Get help understanding this shipment record and its recovery steps.</p>
+                        <p>Include the order reference above when asking for help with this test shipment.</p>
                       </div>
                       <a
                         className="discord-help-button"
