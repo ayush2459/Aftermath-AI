@@ -32,6 +32,7 @@ class VerifyPaymentIn(BaseModel):
 
 @router.post("/orders", status_code=201)
 def create_razorpay_order(payload: OrderCreateIn, db: Session = Depends(get_db)):
+    """Create a Test Mode payment order for the supplied customer session."""
     client = get_client()
     requested = {}
     for item in payload.items:
