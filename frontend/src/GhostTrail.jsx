@@ -93,6 +93,18 @@ export default function GhostTrail() {
     finally { setBusy(""); }
   };
 
+  const executeDemoRecovery = async () => {
+    if (!plan?.plan_id || plan.approval?.status !== "approved") return;
+    setBusy("execute"); setError("");
+    try {
+      const data = await request(`/api/recovery/plans/${plan.plan_id}/execute-demo`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customer_session: customerSession })
+      });
+      setPlan((old) => ({ ...old, execution: data }));
+    } catch (e) { setError(e.message); }
+    finally { setBusy(""); }
+  };
   return (
     <div className="ghosttrail-page">
       <header className="ghosttrail-top">
@@ -157,6 +169,22 @@ export default function GhostTrail() {
             <button className="ghosttrail-secondary" disabled={!!busy || !!plan.decision} onClick={() => decide("rejected")}>Reject proposal</button>
           </div>
         </div>
+        {plan.approval?.status === "approved" && !plan.execution && (
+          <div className="ghosttrail-approval">
+            <b>Approval recorded</b>
+            <p>This records a simulation only; no parcel, carrier, payment, inventory or fulfillment record is changed.</p>
+            <button className="ghosttrail-primary" disabled={!!busy} onClick={executeDemoRecovery}>
+              {busy === "execute" ? "Recording…" : "Execute demo recovery"}
+            </button>
+          </div>
+        )}
+        {plan.execution?.status === "completed" && (
+          <div className="ghosttrail-approval" role="status">
+            <b>Approved demo recovery recorded</b>
+            <p>Simulation only. Real fulfillment remains unchanged.</p>
+            <a href={plan.execution.customer_url}>Open customer shipment page</a>
+          </div>
+        )}
       </section>}
       <p className="ghosttrail-disclaimer">Demo environment · Razorpay Test Mode · Carrier failures are simulated · No payment, inventory or shipment actions are executed by GhostTrail.</p>
     </div>
