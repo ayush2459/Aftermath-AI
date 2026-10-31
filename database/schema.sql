@@ -72,6 +72,21 @@ CREATE TABLE IF NOT EXISTS recovery_actions (
  idempotency_key TEXT NOT NULL UNIQUE, input JSONB NOT NULL DEFAULT '{}'::jsonb, result JSONB NOT NULL DEFAULT '{}'::jsonb,
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE TABLE IF NOT EXISTS notification_deliveries (
+ delivery_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+ incident_id UUID NOT NULL UNIQUE REFERENCES incidents(incident_id) ON DELETE CASCADE,
+ channel TEXT NOT NULL DEFAULT 'discord',
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','sending','sent','failed')),
+ attempts INTEGER NOT NULL DEFAULT 0 CHECK(attempts >= 0),
+ last_error TEXT,
+ sent_at TIMESTAMPTZ,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_notification_deliveries_status
+ ON notification_deliveries(status, updated_at);
+
 CREATE TABLE IF NOT EXISTS audit_log (
  audit_id UUID PRIMARY KEY DEFAULT gen_random_uuid(), incident_id UUID REFERENCES incidents(incident_id),
  actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, action TEXT NOT NULL, decision TEXT NOT NULL,
