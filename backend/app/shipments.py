@@ -241,9 +241,11 @@ def get_shipment_issues(
 
 
 @router.get("/list_shipments")
-def list_shipments(db: Session = Depends(get_db)):
-    """Return recent orders with shipment and incident information."""
-
+def list_shipments(
+    customer_session: str,
+    db: Session = Depends(get_db),
+):
+    """Return shipment records belonging only to the supplied customer session."""
     rows = db.execute(
         text("""
             SELECT
@@ -252,7 +254,6 @@ def list_shipments(db: Session = Depends(get_db)):
                 o.total_paise,
                 o.created_at AS order_created_at,
                 COALESCE(ordered_items.products, '[]'::json) AS ordered_products,
-
                 s.shipment_id,
                 s.status AS shipment_status,
                 s.carrier_name,
@@ -262,39 +263,27 @@ def list_shipments(db: Session = Depends(get_db)):
                 s.estimated_delivery_at,
                 s.last_error,
                 s.updated_at AS shipment_updated_at,
-
                 demo_recovery.status AS demo_recovery_status,
-                demo_recovery.started_at AS demo_recovery_started_at,
-
                 i.incident_id,
                 i.status AS incident_status,
                 i.severity AS incident_severity,
                 i.title AS incident_title,
                 i.summary AS incident_summary,
-
                 latest.event_type AS latest_event_type,
                 latest.message AS latest_event_message,
                 latest.severity AS latest_event_severity,
                 latest.created_at AS latest_event_at
-
             FROM orders o
-
-            LEFT JOIN shipments s
-                ON s.order_id = o.order_id
-
-            LEFT JOIN incidents i
-                ON i.order_id = o.order_id
-
+            LEFT JOIN shipments s ON s.order_id = o.order_id
+            LEFT JOIN incidents i ON i.order_id = o.order_id
             LEFT JOIN LATERAL (
-                SELECT 'completed'::text AS status,
-                       recovery_event.created_at AS started_at
-                FROM events recovery_event
-                WHERE recovery_event.order_id = o.order_id
-                  AND recovery_event.event_type = 'sample_delivery_simulation'
-                ORDER BY recovery_event.created_at DESC
+                SELECT ra.status, ra.created_at
+                FROM recovery_actions ra
+                WHERE ra.incident_id = i.incident_id
+                  AND ra.action_type = 'sample_delivery_simulation'
+                ORDER BY ra.created_at DESC
                 LIMIT 1
             ) demo_recovery ON TRUE
-
             LEFT JOIN LATERAL (
                 SELECT json_agg(
                     json_build_object(
@@ -310,22 +299,18 @@ def list_shipments(db: Session = Depends(get_db)):
                 JOIN products p ON p.product_id = oi.product_id
                 WHERE oi.order_id = o.order_id
             ) ordered_items ON TRUE
-
             LEFT JOIN LATERAL (
-                SELECT
-                    event_type,
-                    message,
-                    severity,
-                    created_at
+                SELECT event_type, message, severity, created_at
                 FROM events e
                 WHERE e.order_id = o.order_id
                 ORDER BY e.created_at DESC, e.event_id DESC
                 LIMIT 1
             ) latest ON TRUE
-
+            WHERE o.customer_session = :customer_session
             ORDER BY o.created_at DESC
             LIMIT 100
-        """)
+        """),
+        {"customer_session": customer_session},
     ).mappings().all()
 
     return {
