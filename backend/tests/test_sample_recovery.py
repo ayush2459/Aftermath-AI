@@ -27,9 +27,9 @@ class FakeResult:
 
 
 class FakeSession:
-    def __init__(self, row, existing_event=None):
+    def __init__(self, row, existing_action=None):
         self.row = row
-        self.existing_event = existing_event
+        self.existing_action = existing_action
         self.statements = []
         self.committed = False
         self.rolled_back = False
@@ -39,8 +39,8 @@ class FakeSession:
         self.statements.append(sql)
         if "SELECT o.customer_session" in sql:
             return FakeResult(self.row)
-        if "SELECT event_id FROM events" in sql:
-            return FakeResult(self.existing_event)
+        if "FROM recovery_actions" in sql:
+            return FakeResult(self.existing_action)
         return FakeResult(None)
 
     def commit(self):
@@ -68,6 +68,8 @@ class SampleRecoveryTests(unittest.TestCase):
         result = complete_sample_recovery(self.payload, db)
         self.assertEqual(result["demo_recovery_status"], "completed")
         self.assertTrue(db.committed)
+        self.assertTrue(any("INSERT INTO recovery_actions" in sql for sql in db.statements))
+        self.assertTrue(any("INSERT INTO audit_log" in sql for sql in db.statements))
         self.assertTrue(any("INSERT INTO events" in sql for sql in db.statements))
         self.assertFalse(any("UPDATE shipments" in sql or "UPDATE incidents" in sql for sql in db.statements))
 
@@ -93,12 +95,24 @@ class SampleRecoveryTests(unittest.TestCase):
         self.assertEqual(error.exception.status_code, 409)
         self.assertFalse(db.committed)
 
-    def test_repeated_recovery_does_not_add_another_event(self):
-        db = FakeSession(self.row, existing_event=(UUID("35c3ad3d-9012-4f6d-9217-ae507cc3937c"),))
+    def test_repeated_recovery_returns_idempotent_replay(self):
+        db = FakeSession(self.row, existing_action={
+            "status": "completed",
+            "result": {"sample_resolution": "delivered", "simulated": True},
+        })
         result = complete_sample_recovery(self.payload, db)
         self.assertEqual(result["demo_recovery_status"], "completed")
+        self.assertTrue(result["idempotent_replay"])
         self.assertTrue(db.committed)
-        self.assertFalse(any("INSERT INTO events" in sql for sql in db.statements))
+        self.assertFalse(any("INSERT INTO recovery_actions" in sql for sql in db.statements))
+        self.assertFalse(any("INSERT INTO audit_log" in sql for sql in db.statements))
+
+    def test_incomplete_recovery_action_is_not_replayed(self):
+        db = FakeSession(self.row, existing_action={"status": "running", "result": {}})
+        with self.assertRaises(HTTPException) as error:
+            complete_sample_recovery(self.payload, db)
+        self.assertEqual(error.exception.status_code, 409)
+        self.assertTrue(db.rolled_back)
 
 
 if __name__ == "__main__":

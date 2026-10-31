@@ -44,7 +44,7 @@ const productImage = (product) => {
     ? path
     : `${API}${path.startsWith("/") ? path : `/${path}`}`;
 
-  return `${url}${url.includes("?") ? "&" : "?"}v=20261030-3`;
+  return `${url}${url.includes("?") ? "&" : "?"}v=20261031-1`;
 };
 
 const formatDate = (value) => {
@@ -200,6 +200,21 @@ function App() {
   });
 
   // Shipment dashboard state
+  const [dashboardClearCutoff] = useState(() => {
+    const key = "aftermath_dashboard_orders_cleared_at";
+    let cutoff = localStorage.getItem(key);
+    if (!cutoff) {
+      cutoff = new Date().toISOString();
+      localStorage.setItem(key, cutoff);
+    }
+    return cutoff;
+  });
+  const visibleDashboardOrders = (records) =>
+    records.filter((record) => {
+      const createdAt = Date.parse(record.order_created_at || "");
+      return Number.isFinite(createdAt) && createdAt >= Date.parse(dashboardClearCutoff);
+    });
+
   const [shipments, setShipments] = useState([]);
   const [shipmentsLoading, setShipmentsLoading] = useState(true);
   const [shipmentError, setShipmentError] = useState("");
@@ -229,7 +244,7 @@ function App() {
 
     try {
       const response = await fetch(
-        `${API}/api/agent-tools/list_shipments`
+        `${API}/api/agent-tools/list_shipments?customer_session=${encodeURIComponent(customerSession)}`
       );
 
       if (!response.ok) {
@@ -237,7 +252,7 @@ function App() {
       }
 
       const data = await response.json();
-      const records = data.shipments || [];
+      const records = visibleDashboardOrders(data.shipments || []);
 
       setShipments(records);
 
@@ -255,7 +270,7 @@ function App() {
             const timelineResponse = await fetch(
               `${API}/api/agent-tools/get_shipment_timeline?order_id=${encodeURIComponent(
                 shipment.order_id
-              )}`
+              )}&customer_session=${encodeURIComponent(customerSession)}`
             );
 
             if (!timelineResponse.ok) {
@@ -313,10 +328,10 @@ function App() {
     let active = true;
     const timer = window.setInterval(async () => {
       try {
-        const response = await fetch(`${API}/api/agent-tools/list_shipments`);
+        const response = await fetch(`${API}/api/agent-tools/list_shipments?customer_session=${encodeURIComponent(customerSession)}`);
         if (response.ok && active) {
           const data = await response.json();
-          if (active) setShipments(data.shipments || []);
+          if (active) setShipments(visibleDashboardOrders(data.shipments || []));
         }
       } catch {
         // Keep the last known view until the next refresh.
@@ -348,8 +363,15 @@ function App() {
           customer_session: customerSession
         })
       });
+      const recovery = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error("This demo order could not be updated from this browser.");
+        throw new Error(recovery.detail || "This demo order could not be updated from this browser.");
+      }
+      if (
+        recovery.order_id !== recoveryOrderId ||
+        recovery.demo_recovery_status !== "completed"
+      ) {
+        throw new Error("The backend did not confirm sample recovery completion.");
       }
 
       setRecoveryComplete(true);
@@ -360,7 +382,11 @@ function App() {
       await refreshShipments();
       restartDemo(recoveryOrderId);
       setSampleViewOrderId(recoveryOrderId);
-      setRecoveryMessage("The demo journey is starting. The final result will appear after each stage.");
+      setRecoveryMessage(
+        recovery.idempotent_replay
+          ? "This sample resolution was already recorded. Showing the existing sample view."
+          : "The sample recovery is recorded. Showing the illustrative delivery journey."
+      );
     } catch (error) {
       setRecoveryMessage(error.message);
     } finally {
@@ -533,6 +559,7 @@ function App() {
                 },
                 body: JSON.stringify({
                   order_id: order.order_id,
+                  customer_session: customerSession,
                   razorpay_order_id:
                     response.razorpay_order_id,
                   razorpay_payment_id:
@@ -555,7 +582,7 @@ function App() {
             let sampleShipmentFailure = false;
             try {
               const statusResponse = await fetch(
-                `${API}/api/orders/${encodeURIComponent(order.order_id)}`
+                `${API}/api/orders/${encodeURIComponent(order.order_id)}?customer_session=${encodeURIComponent(customerSession)}`
               );
               if (statusResponse.ok) {
                 const orderStatus = await statusResponse.json();
@@ -775,7 +802,7 @@ function App() {
 
             <div className="hero-product">
               <img
-                src={`${API}/static/products/aurora-headphones.jpg`}
+                src={`${API}/static/products/aurora-headphones.jpg?v=20261031-1`}
                 alt="Aurora wireless headphones"
               />
             </div>

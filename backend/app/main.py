@@ -316,11 +316,15 @@ def create_order(payload: OrderCreateIn, db: Session = Depends(get_db)):
 
 
 @app.get("/api/orders/{order_id}")
-def get_order(order_id: str, db: Session = Depends(get_db)):
+def get_order(
+    order_id: str,
+    customer_session: str,
+    db: Session = Depends(get_db),
+):
+    """Return an order only to the customer session that created it."""
     row = db.execute(text("""
         SELECT
             o.order_id,
-            o.customer_session,
             o.status,
             o.total_paise,
             o.currency,
@@ -333,9 +337,14 @@ def get_order(order_id: str, db: Session = Depends(get_db)):
         LEFT JOIN payments p ON p.order_id = o.order_id
         LEFT JOIN shipments s ON s.order_id = o.order_id
         WHERE o.order_id = :order_id
-    """), {"order_id": order_id}).mappings().first()
+          AND o.customer_session = :customer_session
+    """), {
+        "order_id": order_id,
+        "customer_session": customer_session,
+    }).mappings().first()
 
     if not row:
+        # Do not reveal whether an order belongs to another customer.
         raise HTTPException(status_code=404, detail="Order not found")
 
     return dict(row)
