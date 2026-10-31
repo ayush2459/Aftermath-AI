@@ -62,8 +62,15 @@ def get_shipment(
     customer_session: str = Query(..., min_length=1, max_length=128),
     db: Session = Depends(get_db),
 ):
-    """Return the business-level shipment record for an order."""
-    return _shipment(db, order_id)
+    """Return the business-level shipment record only to its customer."""
+    shipment = _shipment(db, order_id)
+    owner = db.execute(
+        text("SELECT customer_session FROM orders WHERE order_id = :order_id"),
+        {"order_id": order_id},
+    ).scalar_one_or_none()
+    if owner != customer_session:
+        raise HTTPException(status_code=404, detail="Shipment not found for this customer.")
+    return shipment
 
 
 @router.get("/get_shipment_status")
