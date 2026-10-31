@@ -139,6 +139,7 @@ def get_shipment_timeline(
 @router.get("/get_shipment_location")
 def get_shipment_location(
     order_id: UUID,
+    customer_session: str = Query(..., min_length=1, max_length=128),
     db: Session = Depends(get_db),
 ):
     """Return the latest known shipment location."""
@@ -165,6 +166,7 @@ def get_shipment_location(
 @router.get("/get_shipment_eta")
 def get_shipment_eta(
     order_id: UUID,
+    customer_session: str = Query(..., min_length=1, max_length=128),
     db: Session = Depends(get_db),
 ):
     """Return the estimated shipment delivery time."""
@@ -191,6 +193,7 @@ def get_shipment_eta(
 @router.get("/get_carrier_details")
 def get_carrier_details(
     order_id: UUID,
+    customer_session: str = Query(..., min_length=1, max_length=128),
     db: Session = Depends(get_db),
 ):
     """Return carrier and tracking information."""
@@ -222,6 +225,7 @@ def get_carrier_details(
 @router.get("/get_shipment_issues")
 def get_shipment_issues(
     order_id: UUID,
+    customer_session: str = Query(..., min_length=1, max_length=128),
     db: Session = Depends(get_db),
 ):
     """Return shipment-related failures and unresolved issues."""
