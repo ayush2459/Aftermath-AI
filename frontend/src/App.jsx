@@ -1,6 +1,6 @@
 
 import React, { useEffect, useMemo, useState } from "react";
-import { sampleJourneyStage, sampleTrackingNumber, shouldOpenSampleJourney } from "./demoTracking";
+import { sampleJourneyStage, sampleTrackingNumber, shouldOpenSampleJourney, shouldShowSampleResolution } from "./demoTracking";
 import {
   ArrowRight,
   Check,
@@ -911,7 +911,7 @@ function App() {
           ) : (
             <div className="shipment-list">
               {matchingShipments.map((shipment) => {
-                if (sampleTrackingNumber(shipment)) {
+                if (shouldShowSampleResolution(shipment)) {
                   return <DemoShipmentCard
                     key={shipment.shipment_id}
                     shipment={shipment}
