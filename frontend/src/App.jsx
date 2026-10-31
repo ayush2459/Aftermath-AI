@@ -64,6 +64,85 @@ const readable = (value) =>
     .replaceAll("_", " ")
     .replaceAll(".", " ");
 
+const demoSteps = [
+  "Order placed",
+  "Dispatched",
+  "Shipped",
+  "Out for delivery",
+  "Delivered"
+];
+
+function DemoShipmentCard({ shipment, now, startedAt, onRestart }) {
+  const stage = Math.min(2 + Math.floor(Math.max(0, now - startedAt) / 15000), 4);
+  const trackingNumber = sampleTrackingNumber(shipment);
+
+  return (
+    <article className="shipment-card demo-shipment-card">
+      <div className="shipment-card-top">
+        <div>
+          <span className="eyebrow">SAMPLE ORDER REFERENCE</span>
+          <h3>{shipment.order_id}</h3>
+        </div>
+        <span className="shipment-status demo-status">{demoSteps[stage]}</span>
+      </div>
+
+      <div className="shipment-demo-note" role="note">
+        <b>Sample delivery simulation · No real parcel is being shipped</b>
+        <p>This preview advances on this page every 15 seconds. Its tracking number and delivery stages are examples, not carrier updates.</p>
+      </div>
+
+      <div className="demo-tracking-number">
+        <small>SAMPLE TRACKING NUMBER</small>
+        <b>{trackingNumber}</b>
+        <span>Paste this number into the search box above to find this test order.</span>
+      </div>
+
+      <div className="shipment-products">
+        <div className="shipment-products-heading">
+          <span className="eyebrow">ORDERED PRODUCTS</span>
+          <span className="timeline-count">
+            {(shipment.ordered_products || []).reduce((sum, product) => sum + product.quantity, 0)} ITEMS
+          </span>
+        </div>
+        <div className="shipment-product-list">
+          {(shipment.ordered_products || []).map((product) => (
+            <div className="shipment-product-row" key={product.product_id}>
+              <div className="shipment-product-thumb">
+                {product.product_id === "aurora-headphones" ? <Headphones size={20} /> : <ShoppingBag size={20} />}
+              </div>
+              <div className="shipment-product-name">
+                <b>{product.product_name}</b>
+                <small>SKU: {product.product_id}</small>
+              </div>
+              <span className="shipment-product-qty">Qty {product.quantity}</span>
+              <strong>{money(product.line_total_paise)}</strong>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="shipment-metrics">
+        <div><small>SAMPLE DELIVERY STATUS</small><b>{demoSteps[stage]}</b></div>
+        <div><small>ORDER VALUE</small><b>{money(shipment.total_paise)}</b></div>
+      </div>
+
+      <div className="demo-journey">
+        <div className="timeline-heading">
+          <div><span className="eyebrow">SAMPLE DELIVERY JOURNEY</span><h4>Tracking timeline</h4></div>
+          <button type="button" className="demo-restart" onClick={onRestart}>Restart demo</button>
+        </div>
+        {demoSteps.map((step, index) => (
+          <div className={`demo-journey-step ${index < stage ? "complete" : index === stage ? "current" : "upcoming"}`} key={step}>
+            <span className="demo-journey-marker">{index < stage ? <Check size={14} /> : index + 1}</span>
+            <b>{step}</b>
+            <small>{index < stage ? "Completed in demo" : index === stage ? "Current sample stage" : "Coming up in demo"}</small>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
 function App() {
   const isShipmentPage = window.location.pathname.replace(/\/+$/, "") === "/shipments";
   const [products, setProducts] = useState([]);
@@ -90,6 +169,14 @@ function App() {
   const [shipmentsLoading, setShipmentsLoading] = useState(true);
   const [shipmentError, setShipmentError] = useState("");
   const [trackingQuery, setTrackingQuery] = useState("");
+  const [demoNow, setDemoNow] = useState(Date.now);
+  const [demoStartedAt, setDemoStartedAt] = useState(() => {
+    const stored = Number(sessionStorage.getItem("aftermath_demo_delivery_started_at"));
+    if (stored > 0) return stored;
+    const started = Date.now();
+    sessionStorage.setItem("aftermath_demo_delivery_started_at", String(started));
+    return started;
+  });
   const [timelines, setTimelines] = useState({});
   const [timelineErrors, setTimelineErrors] = useState({});
 
@@ -172,6 +259,19 @@ function App() {
   useEffect(() => {
     refreshShipments();
   }, []);
+
+  useEffect(() => {
+    if (!isShipmentPage) return undefined;
+    const timer = window.setInterval(() => setDemoNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [isShipmentPage]);
+
+  const restartDemo = () => {
+    const started = Date.now();
+    sessionStorage.setItem("aftermath_demo_delivery_started_at", String(started));
+    setDemoStartedAt(started);
+    setDemoNow(started);
+  };
 
   // Fetch products
   useEffect(() => {
@@ -720,8 +820,8 @@ function App() {
               </div>
               <h2>Shipment <em>monitor.</em></h2>
               <p>
-                These are sample orders. Shipment failures here are intentional
-                examples, and no physical parcels are sent.
+                Explore sample delivery stages and tracking numbers. These
+                updates are simulated; no physical parcels are sent.
               </p>
             </div>
 
@@ -768,6 +868,16 @@ function App() {
           ) : (
             <div className="shipment-list">
               {matchingShipments.map((shipment) => {
+                if (sampleTrackingNumber(shipment)) {
+                  return <DemoShipmentCard
+                    key={shipment.shipment_id}
+                    shipment={shipment}
+                    now={demoNow}
+                    startedAt={demoStartedAt}
+                    onRestart={restartDemo}
+                  />;
+                }
+
                 const events = [
                   ...(timelines[shipment.order_id] || [])
                 ].sort(

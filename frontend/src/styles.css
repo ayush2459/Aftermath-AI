@@ -75,6 +75,93 @@
   color: #8fc4ff;
 }
 
+.shipment-status.demo-status {
+  background: rgba(196,243,107,.14);
+  color: #c4f36b;
+}
+
+.demo-tracking-number {
+  display: grid;
+  gap: 7px;
+  margin: 22px 0;
+  padding: 17px;
+  border: 1px solid rgba(196,243,107,.35);
+  border-radius: 8px;
+  background: rgba(196,243,107,.07);
+}
+
+.demo-tracking-number small {
+  color: #c4f36b;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.demo-tracking-number b {
+  overflow-wrap: anywhere;
+  font-size: 15px;
+}
+
+.demo-tracking-number span {
+  color: #a3adbf;
+  font-size: 12px;
+}
+
+.demo-journey {
+  margin-top: 25px;
+  border-top: 1px solid rgba(255,255,255,.09);
+  padding-top: 23px;
+}
+
+.demo-restart {
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: transparent;
+  color: #c4f36b;
+  cursor: pointer;
+}
+
+.demo-journey-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 0;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+
+.demo-journey-marker {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 25px;
+  border-radius: 50%;
+  background: #34434a;
+  color: #dce5f2;
+  font-size: 11px;
+}
+
+.demo-journey-step.complete .demo-journey-marker,
+.demo-journey-step.current .demo-journey-marker {
+  background: #c4f36b;
+  color: #15200e;
+}
+
+.demo-journey-step b {
+  flex: 1;
+  font-size: 13px;
+}
+
+.demo-journey-step small {
+  color: #a3adbf;
+  text-align: right;
+  font-size: 11px;
+}
+
+.demo-journey-step.upcoming {
+  opacity: .55;
+}
+
 .shipment-metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
