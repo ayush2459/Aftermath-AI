@@ -78,7 +78,7 @@ def _send_discord(payload):
         ) from exc
 
 
-def dispatch_discord_alert(db, incident_id):
+def dispatch_discord_alert(db, incident_id, notification_key="incident.created"):
     """Deliver one incident alert using the persistent notification outbox."""
     if not (
         (DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID)
@@ -87,13 +87,15 @@ def dispatch_discord_alert(db, incident_id):
         logger.warning("Discord credentials are not configured.")
         return False
 
+    dedupe_key = f"{incident_id}:{notification_key}"
     try:
-        # Ensure alerts created by payment verification also have an outbox row.
+        # Each logical event receives one durable, independently retryable outbox row.
         db.execute(text("""
-            INSERT INTO notification_deliveries (incident_id, channel, status)
-            VALUES (:incident_id, 'discord', 'pending')
-            ON CONFLICT (incident_id) DO NOTHING
-        """), {"incident_id": incident_id})
+            INSERT INTO notification_deliveries
+                (incident_id, channel, status, dedupe_key)
+            VALUES (:incident_id, 'discord', 'pending', :dedupe_key)
+            ON CONFLICT (dedupe_key) DO NOTHING
+        """), {"incident_id": incident_id, "dedupe_key": dedupe_key})
         db.commit()
 
         # Claim atomically to prevent concurrent duplicate sends.
@@ -103,16 +105,24 @@ def dispatch_discord_alert(db, incident_id):
                 attempts = attempts + 1,
                 last_error = NULL,
                 updated_at = NOW()
-            WHERE incident_id = :incident_id
+            WHERE dedupe_key = :dedupe_key
+              AND attempts < 5
               AND (
-                    status IN ('pending', 'failed')
+                    (status = 'pending' AND updated_at <= NOW())
+                    OR (
+                        status = 'failed'
+                        AND updated_at <= NOW() - (
+                            INTERVAL '30 seconds'
+                            * POWER(2, GREATEST(attempts - 1, 0))
+                        )
+                    )
                     OR (
                         status = 'sending'
                         AND updated_at < NOW() - INTERVAL '5 minutes'
                     )
               )
             RETURNING incident_id
-        """), {"incident_id": incident_id}).first()
+        """), {"incident_id": incident_id, "dedupe_key": dedupe_key}).first()
         db.commit()
 
         if not claimed:
@@ -177,10 +187,10 @@ def dispatch_discord_alert(db, incident_id):
                 sent_at = NOW(),
                 last_error = NULL,
                 updated_at = NOW()
-            WHERE incident_id = :incident_id
-        """), {"incident_id": incident_id})
+            WHERE dedupe_key = :dedupe_key
+        """), {"incident_id": incident_id, "dedupe_key": dedupe_key})
         db.commit()
-        logger.info("Discord alert sent for incident %s", incident_id)
+        logger.info("Discord alert sent for incident %s (%s)", incident_id, notification_key)
         return True
 
     except Exception as exc:
@@ -192,8 +202,12 @@ def dispatch_discord_alert(db, incident_id):
                 SET status = 'failed',
                     last_error = :error,
                     updated_at = NOW()
-                WHERE incident_id = :incident_id
-            """), {"incident_id": incident_id, "error": str(exc)[:2000]})
+                WHERE dedupe_key = :dedupe_key
+            """), {
+                "incident_id": incident_id,
+                "dedupe_key": dedupe_key,
+                "error": str(exc)[:2000],
+            })
             db.commit()
         except Exception:
             db.rollback()
