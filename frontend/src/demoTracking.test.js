@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isSeededDemoFailure, sampleJourneyStage, sampleTrackingNumber, shouldOpenSampleJourney } from "./demoTracking.js";
+import { isSeededDemoFailure, sampleJourneyStage, sampleTrackingNumber, shouldOpenSampleJourney, shouldShowSampleResolution } from "./demoTracking.js";
 
 test("sample tracking references are stable and only created for seeded failures", () => {
   const shipment = {
@@ -17,6 +17,8 @@ test("sample tracking references are stable and only created for seeded failures
   assert.equal(sampleTrackingNumber(shipment), "DEMO-10DCF829777B43B78F1CF2F058B90BA3");
   assert.equal(sampleTrackingNumber({ ...shipment, last_error: null }), null);
   assert.equal(sampleTrackingNumber({ last_error: shipment.last_error }), null);
+  assert.equal(shouldShowSampleResolution(shipment), false);
+  assert.equal(shouldShowSampleResolution({ ...shipment, demo_recovery_status: "completed" }), true);
 });
 
 test("sample journey advances from the recorded failure time", () => {
