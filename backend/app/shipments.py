@@ -337,7 +337,7 @@ def complete_sample_recovery(
     payload: CompleteSampleRecoveryIn,
     db: Session = Depends(get_db),
 ):
-    """Record a customer-authorized sample resolution without changing real fulfillment."""
+    """Record an idempotent customer-authorized sample resolution without changing fulfillment."""
     try:
         row = db.execute(
             text("""
@@ -363,6 +363,27 @@ def complete_sample_recovery(
         ):
             raise HTTPException(status_code=409, detail="This order has no eligible sample recovery.")
 
+        idempotency_key = f"sample-delivery:{payload.order_id}"
+        existing = db.execute(
+            text("""
+                SELECT status, result
+                FROM recovery_actions
+                WHERE idempotency_key = :idempotency_key
+                FOR UPDATE
+            """),
+            {"idempotency_key": idempotency_key},
+        ).mappings().first()
+
+        if existing:
+            if existing["status"] != "completed":
+                raise HTTPException(status_code=409, detail="A sample recovery action is already recorded but not complete.")
+            db.commit()
+            return {
+                "order_id": str(payload.order_id),
+                "demo_recovery_status": "completed",
+                "idempotent_replay": True,
+            }
+
         db.execute(
             text("""
                 INSERT INTO recovery_actions (
@@ -371,31 +392,46 @@ def complete_sample_recovery(
                     :incident_id, 'sample_delivery_simulation', 'completed',
                     :idempotency_key, CAST(:input AS JSONB), CAST(:result AS JSONB)
                 )
-                ON CONFLICT (idempotency_key) DO NOTHING
             """),
             {
                 "incident_id": row["incident_id"],
-                "idempotency_key": f"sample-delivery:{payload.order_id}",
+                "idempotency_key": idempotency_key,
                 "input": '{"customer_confirmed": true, "simulated": true}',
                 "result": '{"sample_resolution": "delivered", "simulated": true}',
             },
         )
-        action_status = db.execute(
+        db.execute(
             text("""
-                SELECT status FROM recovery_actions
-                WHERE idempotency_key = :idempotency_key
+                INSERT INTO audit_log (
+                    incident_id, actor_type, actor_id, action, decision, reason, details
+                ) VALUES (
+                    :incident_id, 'customer', :customer_session,
+                    'complete_sample_recovery', 'recorded',
+                    'Customer requested the illustrative sample delivery; real fulfillment was not changed.',
+                    CAST(:details AS JSONB)
+                )
             """),
-            {"idempotency_key": f"sample-delivery:{payload.order_id}"},
-        ).scalar_one()
-        if action_status != "completed":
-            raise HTTPException(status_code=409, detail="Sample recovery is not complete.")
+            {
+                "incident_id": row["incident_id"],
+                "customer_session": payload.customer_session,
+                "details": json.dumps({
+                    "order_id": str(payload.order_id),
+                    "simulated": True,
+                    "real_shipment_unchanged": True,
+                }),
+            },
+        )
         db.commit()
     except HTTPException:
         db.rollback()
         raise
     except Exception:
         db.rollback()
+        logger.exception("Could not record sample recovery for order %s", payload.order_id)
         raise HTTPException(status_code=500, detail="Sample recovery could not be recorded.")
 
-    return {"order_id": str(payload.order_id), "demo_recovery_status": "completed"}
-
+    return {
+        "order_id": str(payload.order_id),
+        "demo_recovery_status": "completed",
+        "idempotent_replay": False,
+    }
