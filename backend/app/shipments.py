@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -246,7 +246,7 @@ def get_shipment_issues(
 
 @router.get("/list_shipments")
 def list_shipments(
-    customer_session: str,
+    customer_session: str = Query(..., min_length=1, max_length=128),
     db: Session = Depends(get_db),
 ):
     """Return shipment records belonging only to the supplied customer session."""
