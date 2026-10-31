@@ -1,6 +1,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { sampleJourneyStage, sampleTrackingNumber, shouldOpenSampleJourney, shouldShowSampleResolution } from "./demoTracking";
+import GhostTrail from "./GhostTrail.jsx";
 import {
   ArrowRight,
   Check,
@@ -727,6 +728,8 @@ function App() {
       sampleTrackingNumber(shipment)
     ].some((value) => value?.toLowerCase().includes(query));
   });
+
+  if (window.location.pathname.replace(/\\/+$/, "") === "/investigation") return <GhostTrail />;
 
   return (
     <div className={`app-shell ${isShipmentPage ? "shipment-page" : "storefront-page"}`} >
