@@ -323,6 +323,7 @@ def list_shipments(
                 s.last_error,
                 s.updated_at AS shipment_updated_at,
                 demo_recovery.status AS demo_recovery_status,
+                ghosttrail_recovery.status AS ghosttrail_recovery_status,
                 i.incident_id,
                 i.status AS incident_status,
                 i.severity AS incident_severity,
@@ -343,6 +344,11 @@ def list_shipments(
                 ORDER BY ra.created_at DESC
                 LIMIT 1
             ) demo_recovery ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT ra.status FROM recovery_actions ra
+                WHERE ra.incident_id = i.incident_id AND ra.action_type = 'ghosttrail_demo_recovery'
+                ORDER BY ra.created_at DESC LIMIT 1
+            ) ghosttrail_recovery ON TRUE
             LEFT JOIN LATERAL (
                 SELECT json_agg(
                     json_build_object(
