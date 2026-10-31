@@ -149,7 +149,7 @@ def verify_razorpay_payment(payload: VerifyPaymentIn, db: Session = Depends(get_
                         "message": "Payment was already verified."}
             if locked_payment["status"] != "pending":
                 raise HTTPException(status_code=409, detail="This payment is no longer pending.")
-            # Lock inventory and re-check stock after the customer completes checkout.
+            # Lock inventory and re-check stock after customer checkout.
             items = db.execute(text("""
                 SELECT oi.product_id, oi.quantity, oi.unit_price_paise, p.stock_quantity
                 FROM order_items oi JOIN products p ON p.product_id = oi.product_id
@@ -157,55 +157,151 @@ def verify_razorpay_payment(payload: VerifyPaymentIn, db: Session = Depends(get_
             """), {"oid": payload.order_id}).mappings().all()
             if not items:
                 raise HTTPException(status_code=409, detail="Order has no items.")
-            for item in items:
-                if item["stock_quantity"] < item["quantity"]:
-                    db.execute(text("UPDATE payments SET status='unknown' WHERE order_id=:oid"), {"oid": payload.order_id})
-                    raise HTTPException(status_code=409, detail="Payment captured but inventory is insufficient; manual reconciliation is required.")
 
-            db.execute(text("""
-                UPDATE payments SET status='captured', razorpay_payment_id=:pid,
-                    razorpay_signature=:sig, captured_at=NOW()
-                WHERE order_id=:oid
-            """), {"pid": payload.razorpay_payment_id, "sig": payload.razorpay_signature, "oid": payload.order_id})
-            db.execute(text("UPDATE orders SET status='recovery_required', incident_id=:iid WHERE order_id=:oid"),
-                       {"iid": incident_id, "oid": payload.order_id})
-            for item in items:
-                db.execute(text("UPDATE products SET stock_quantity=stock_quantity-:qty WHERE product_id=:pid"),
-                           {"qty": item["quantity"], "pid": item["product_id"]})
+            inventory_shortfall = [
+                {
+                    "product_id": item["product_id"],
+                    "requested": int(item["quantity"]),
+                    "available": int(item["stock_quantity"]),
+                }
+                for item in items
+                if item["stock_quantity"] < item["quantity"]
+            ]
+
+            if inventory_shortfall:
+                # Persist the provider-confirmed capture and create a manual
+                # reconciliation incident. Do not raise in this transaction:
+                # that would roll back the captured payment record.
+                reconciliation_incident_id = uuid4()
+                reconciliation_correlation_id = uuid4()
                 db.execute(text("""
-                    INSERT INTO inventory_reservations(order_id, product_id, quantity, status, idempotency_key)
-                    VALUES (:oid, :pid, :qty, 'reserved', :key)
-                    ON CONFLICT (order_id, product_id) DO NOTHING
-                """), {"oid": payload.order_id, "pid": item["product_id"], "qty": item["quantity"],
-                       "key": f"reserve:{payload.order_id}:{item['product_id']}"})
-            db.execute(text("""
-                INSERT INTO shipments(order_id, status, idempotency_key, last_error)
-                VALUES (:oid, 'failed', :key, 'Seeded demo failure: carrier allocation timeout')
-            """), {"oid": payload.order_id, "key": f"shipment:{payload.order_id}"})
-            db.execute(text("""
-                INSERT INTO incidents(incident_id, order_id, status, severity, title, summary, correlation_id)
-                VALUES (:iid, :oid, 'open', 'high', 'Shipment creation failed',
-                  'Razorpay test payment captured; seeded carrier allocation timeout created for recovery demo.', :cid)
-            """), {"iid": incident_id, "oid": payload.order_id, "cid": correlation_id})
-            db.execute(text("""
-                INSERT INTO events(incident_id, order_id, source, event_type, severity, message, payload, correlation_id)
-                VALUES (:iid, :oid, 'shipping-service', 'shipment.failed', 'error',
-                  'Carrier allocation timed out after verified test payment.',
-                  CAST(:payload AS JSONB), :cid)
-            """), {"iid": incident_id, "oid": payload.order_id,
-                   "payload": json.dumps({"failure":"carrier_allocation_timeout","payment_provider":"razorpay_test","payment_id":payload.razorpay_payment_id}),
-                   "cid": correlation_id})
-            db.execute(text("""
-                INSERT INTO audit_log(incident_id, actor_type, actor_id, action, decision, reason, details)
-                VALUES (:iid, 'system', 'razorpay-verifier', 'verify_test_payment', 'accepted',
-                  'Razorpay signature, order, amount, currency and captured status verified.',
-                  CAST(:details AS JSONB))
-            """), {"iid": incident_id, "details": json.dumps({"order_id":str(payload.order_id),"razorpay_payment_id":payload.razorpay_payment_id,"mode":"test"})})
+                    UPDATE payments
+                    SET status='captured',
+                        razorpay_payment_id=:pid,
+                        razorpay_signature=:sig,
+                        captured_at=NOW()
+                    WHERE order_id=:oid
+                """), {
+                    "pid": payload.razorpay_payment_id,
+                    "sig": payload.razorpay_signature,
+                    "oid": payload.order_id,
+                })
+                db.execute(text("""
+                    UPDATE orders
+                    SET status='needs_human', incident_id=:iid
+                    WHERE order_id=:oid
+                """), {"iid": reconciliation_incident_id, "oid": payload.order_id})
+                db.execute(text("""
+                    INSERT INTO incidents(
+                        incident_id, order_id, status, severity, title, summary, correlation_id
+                    ) VALUES (
+                        :iid, :oid, 'open', 'critical',
+                        'Payment captured; inventory unavailable',
+                        'Razorpay confirmed payment capture, but stock revalidation failed. Manual reconciliation is required.',
+                        :cid
+                    )
+                """), {
+                    "iid": reconciliation_incident_id,
+                    "oid": payload.order_id,
+                    "cid": reconciliation_correlation_id,
+                })
+                reconciliation_details = {
+                    "order_id": str(payload.order_id),
+                    "razorpay_payment_id": payload.razorpay_payment_id,
+                    "inventory_shortfall": inventory_shortfall,
+                    "payment_status": "captured",
+                    "fulfillment_status": "blocked",
+                    "mode": "test",
+                }
+                db.execute(text("""
+                    INSERT INTO events(
+                        incident_id, order_id, source, event_type, severity,
+                        message, payload, correlation_id
+                    ) VALUES (
+                        :iid, :oid, 'inventory-service', 'inventory.reservation_failed',
+                        'critical',
+                        'Payment was captured but available inventory was insufficient; manual reconciliation is required.',
+                        CAST(:payload AS JSONB), :cid
+                    )
+                """), {
+                    "iid": reconciliation_incident_id,
+                    "oid": payload.order_id,
+                    "payload": json.dumps(reconciliation_details),
+                    "cid": reconciliation_correlation_id,
+                })
+                db.execute(text("""
+                    INSERT INTO audit_log(
+                        incident_id, actor_type, actor_id, action, decision, reason, details
+                    ) VALUES (
+                        :iid, 'system', 'razorpay-verifier',
+                        'verify_test_payment_inventory_shortfall', 'manual_reconciliation_required',
+                        'Razorpay capture was verified, but stock could not be reserved. No shipment was created.',
+                        CAST(:details AS JSONB)
+                    )
+                """), {
+                    "iid": reconciliation_incident_id,
+                    "details": json.dumps(reconciliation_details),
+                })
+                reconciliation_required = True
+            else:
+                reconciliation_required = False
+
+            if not reconciliation_required:
+                db.execute(text("""
+                    UPDATE payments SET status='captured', razorpay_payment_id=:pid,
+                        razorpay_signature=:sig, captured_at=NOW()
+                    WHERE order_id=:oid
+                """), {"pid": payload.razorpay_payment_id, "sig": payload.razorpay_signature, "oid": payload.order_id})
+                db.execute(text("UPDATE orders SET status='recovery_required', incident_id=:iid WHERE order_id=:oid"),
+                           {"iid": incident_id, "oid": payload.order_id})
+                for item in items:
+                    db.execute(text("UPDATE products SET stock_quantity=stock_quantity-:qty WHERE product_id=:pid"),
+                               {"qty": item["quantity"], "pid": item["product_id"]})
+                    db.execute(text("""
+                        INSERT INTO inventory_reservations(order_id, product_id, quantity, status, idempotency_key)
+                        VALUES (:oid, :pid, :qty, 'reserved', :key)
+                        ON CONFLICT (order_id, product_id) DO NOTHING
+                    """), {"oid": payload.order_id, "pid": item["product_id"], "qty": item["quantity"],
+                           "key": f"reserve:{payload.order_id}:{item['product_id']}"})
+                db.execute(text("""
+                    INSERT INTO shipments(order_id, status, idempotency_key, last_error)
+                    VALUES (:oid, 'failed', :key, 'Seeded demo failure: carrier allocation timeout')
+                """), {"oid": payload.order_id, "key": f"shipment:{payload.order_id}"})
+                db.execute(text("""
+                    INSERT INTO incidents(incident_id, order_id, status, severity, title, summary, correlation_id)
+                    VALUES (:iid, :oid, 'open', 'high', 'Shipment creation failed',
+                      'Razorpay test payment captured; seeded carrier allocation timeout created for recovery demo.', :cid)
+                """), {"iid": incident_id, "oid": payload.order_id, "cid": correlation_id})
+                db.execute(text("""
+                    INSERT INTO events(incident_id, order_id, source, event_type, severity, message, payload, correlation_id)
+                    VALUES (:iid, :oid, 'shipping-service', 'shipment.failed', 'error',
+                      'Carrier allocation timed out after verified test payment.',
+                      CAST(:payload AS JSONB), :cid)
+                """), {"iid": incident_id, "oid": payload.order_id,
+                       "payload": json.dumps({"failure":"carrier_allocation_timeout","payment_provider":"razorpay_test","payment_id":payload.razorpay_payment_id}),
+                       "cid": correlation_id})
+                db.execute(text("""
+                    INSERT INTO audit_log(incident_id, actor_type, actor_id, action, decision, reason, details)
+                    VALUES (:iid, 'system', 'razorpay-verifier', 'verify_test_payment', 'accepted',
+                      'Razorpay signature, order, amount, currency and captured status verified.',
+                      CAST(:details AS JSONB))
+                """), {"iid": incident_id, "details": json.dumps({"order_id":str(payload.order_id),"razorpay_payment_id":payload.razorpay_payment_id,"mode":"test"})})
     except HTTPException:
         raise
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail="Payment verified with Razorpay, but local finalization failed; reconcile before retrying.") from exc
+
+    if reconciliation_required:
+        return {
+            "verified": True,
+            "status": "captured",
+            "order_id": str(payload.order_id),
+            "incident_id": str(reconciliation_incident_id),
+            "fulfillment_status": "blocked",
+            "reconciliation_required": True,
+            "message": "Payment was captured, but inventory was unavailable. Manual reconciliation is required; no shipment was created.",
+        }
 
     return {"verified": True, "status": "captured", "order_id": str(payload.order_id),
             "incident_id": str(incident_id),
