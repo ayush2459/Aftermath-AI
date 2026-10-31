@@ -66,6 +66,20 @@ CREATE TABLE IF NOT EXISTS approvals (
  status TEXT NOT NULL DEFAULT 'pending', requested_by TEXT, decided_by TEXT, decision_reason TEXT,
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), decided_at TIMESTAMPTZ
 );
+CREATE TABLE IF NOT EXISTS notification_deliveries (
+ delivery_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+ incident_id UUID NOT NULL UNIQUE REFERENCES incidents(incident_id) ON DELETE CASCADE,
+ channel TEXT NOT NULL DEFAULT 'discord',
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','sending','sent','failed')),
+ attempts INTEGER NOT NULL DEFAULT 0 CHECK(attempts >= 0),
+ last_error TEXT,
+ sent_at TIMESTAMPTZ,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_notification_deliveries_status
+ ON notification_deliveries(status, updated_at);
+
 CREATE TABLE IF NOT EXISTS recovery_actions (
  action_id UUID PRIMARY KEY DEFAULT gen_random_uuid(), incident_id UUID NOT NULL REFERENCES incidents(incident_id),
  plan_id UUID REFERENCES recovery_plans(plan_id), action_type TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
