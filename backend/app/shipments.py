@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .db import get_db
+from .notifications import dispatch_discord_alert
 
 logger = logging.getLogger(__name__)
 
@@ -490,6 +491,19 @@ def complete_sample_recovery(
             },
         )
         db.commit()
+        # Notify operations that the illustrative recovery step was completed.
+        # This is explicitly a demo event; it does not change real fulfillment.
+        try:
+            dispatch_discord_alert(
+                db,
+                row["incident_id"],
+                notification_key=f"shipment.sample_recovery:{payload.order_id}",
+            )
+        except Exception:
+            logger.exception(
+                "Could not dispatch sample recovery notification for order %s",
+                payload.order_id,
+            )
     except HTTPException:
         db.rollback()
         raise
