@@ -8,7 +8,6 @@ import time
 
 from sqlalchemy import text
 
-from .config import DATABASE_URL
 from .db import SessionLocal
 from .notifications import dispatch_discord_alert
 
@@ -28,9 +27,8 @@ def run_once():
                     status = 'pending'
                     OR (
                         status = 'failed'
-                        AND updated_at <= NOW() - (
-                            INTERVAL '30 seconds'
-                            * POWER(2, GREATEST(attempts - 1, 0))
+                        AND updated_at <= NOW() - make_interval(
+                            secs => LEAST(900, 30 * POWER(2, GREATEST(attempts - 1, 0))::INTEGER)
                         )
                     )
                     OR (
