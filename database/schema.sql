@@ -68,7 +68,8 @@ CREATE TABLE IF NOT EXISTS approvals (
 );
 CREATE TABLE IF NOT EXISTS notification_deliveries (
  delivery_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
- incident_id UUID NOT NULL UNIQUE REFERENCES incidents(incident_id) ON DELETE CASCADE,
+ incident_id UUID NOT NULL REFERENCES incidents(incident_id) ON DELETE CASCADE,
+ dedupe_key TEXT NOT NULL UNIQUE,
  channel TEXT NOT NULL DEFAULT 'discord',
  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','sending','sent','failed')),
  attempts INTEGER NOT NULL DEFAULT 0 CHECK(attempts >= 0),
