@@ -4,7 +4,7 @@ ALTER TABLE notification_deliveries
     ADD COLUMN IF NOT EXISTS dedupe_key TEXT;
 
 UPDATE notification_deliveries
-SET dedupe_key = 'incident:' || incident_id::text || ':created'
+SET dedupe_key = incident_id::text || ':incident.created'
 WHERE dedupe_key IS NULL;
 
 ALTER TABLE notification_deliveries
