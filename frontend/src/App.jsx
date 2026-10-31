@@ -363,8 +363,15 @@ function App() {
           customer_session: customerSession
         })
       });
+      const recovery = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error("This demo order could not be updated from this browser.");
+        throw new Error(recovery.detail || "This demo order could not be updated from this browser.");
+      }
+      if (
+        recovery.order_id !== recoveryOrderId ||
+        recovery.demo_recovery_status !== "completed"
+      ) {
+        throw new Error("The backend did not confirm sample recovery completion.");
       }
 
       setRecoveryComplete(true);
@@ -375,7 +382,11 @@ function App() {
       await refreshShipments();
       restartDemo(recoveryOrderId);
       setSampleViewOrderId(recoveryOrderId);
-      setRecoveryMessage("The demo journey is starting. The final result will appear after each stage.");
+      setRecoveryMessage(
+        recovery.idempotent_replay
+          ? "This sample resolution was already recorded. Showing the existing sample view."
+          : "The sample recovery is recorded. Showing the illustrative delivery journey."
+      );
     } catch (error) {
       setRecoveryMessage(error.message);
     } finally {
