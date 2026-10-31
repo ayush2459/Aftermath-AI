@@ -389,9 +389,13 @@ def complete_sample_recovery(
                 JOIN payments p ON p.order_id = o.order_id
                 JOIN shipments s ON s.order_id = o.order_id
                 WHERE o.order_id = :order_id
+                  AND o.customer_session = :customer_session
                 FOR UPDATE OF o
             """),
-            {"order_id": payload.order_id},
+            {
+                "order_id": payload.order_id,
+                "customer_session": payload.customer_session,
+            },
         ).mappings().first()
 
         if not row or row["customer_session"] != payload.customer_session:
