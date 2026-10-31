@@ -208,3 +208,56 @@ def decide_recovery_plan(
         "execution_enabled": False,
         "note": "This demo records an operator attestation only. It does not authenticate the operator or execute recovery actions.",
     }
+
+class RecoveryExecutionIn(BaseModel):
+    customer_session: str = Field(min_length=1, max_length=128)
+
+@router.post("/plans/{plan_id}/execute-demo")
+def execute_approved_demo_recovery(plan_id: UUID, payload: RecoveryExecutionIn, db: Session = Depends(get_db)):
+    """Record approved demo recovery without changing actual fulfillment."""
+    try:
+        row = db.execute(text("""
+            SELECT rp.plan_id, rp.incident_id, rp.status AS plan_status, rp.plan,
+                   a.status AS approval_status, o.order_id, p.status AS payment_status,
+                   s.status AS shipment_status, s.last_error
+            FROM recovery_plans rp JOIN incidents i ON i.incident_id = rp.incident_id
+            JOIN orders o ON o.order_id = i.order_id JOIN approvals a ON a.plan_id = rp.plan_id
+            LEFT JOIN payments p ON p.order_id = o.order_id LEFT JOIN shipments s ON s.order_id = o.order_id
+            WHERE rp.plan_id = :plan_id AND o.customer_session = :customer_session
+            ORDER BY a.created_at DESC LIMIT 1 FOR UPDATE OF rp, a, o
+        """), {"plan_id": plan_id, "customer_session": payload.customer_session}).mappings().first()
+        if not row: raise HTTPException(status_code=404, detail="Recovery plan not found.")
+        if row["plan_status"] != "approved" or row["approval_status"] != "approved":
+            raise HTTPException(status_code=409, detail="An approved recovery decision is required.")
+        if row["payment_status"] != "captured": raise HTTPException(status_code=409, detail="Payment is not captured.")
+        if row["shipment_status"] != "failed" or not (row["last_error"] or "").startswith("Seeded demo failure:"):
+            raise HTTPException(status_code=409, detail="Order is not in the seeded demo failure state.")
+        if not any(x.get("action_type") == "reconcile_shipment_with_carrier" and x.get("approval_required") for x in (row["plan"] or {}).get("actions", [])):
+            raise HTTPException(status_code=409, detail="Plan has no eligible shipment recovery action.")
+        key = f"ghosttrail-demo-recovery:{plan_id}"
+        existing = db.execute(text("SELECT status, result FROM recovery_actions WHERE idempotency_key=:key FOR UPDATE"), {"key": key}).mappings().first()
+        customer_url = f"/shipments?order={row['order_id']}&view=recovered"
+        if existing:
+            if existing["status"] != "completed": raise HTTPException(status_code=409, detail="Existing recovery action is incomplete.")
+            db.commit()
+            return {"plan_id": str(plan_id), "order_id": str(row["order_id"]), "status": "completed", "simulated": True, "idempotent_replay": True, "customer_url": (existing["result"] or {}).get("customer_url", customer_url)}
+        result = {"recovery_status": "completed", "simulated": True, "real_fulfillment_unchanged": True, "customer_url": customer_url}
+        db.execute(text("""INSERT INTO recovery_actions (incident_id, plan_id, action_type, status, idempotency_key, input, result)
+            VALUES (:incident_id, :plan_id, 'ghosttrail_demo_recovery', 'completed', :key, CAST(:input AS JSONB), CAST(:result AS JSONB))"""),
+            {"incident_id": row["incident_id"], "plan_id": plan_id, "key": key, "input": json.dumps({"customer_session": payload.customer_session, "simulated": True}), "result": json.dumps(result)})
+        db.execute(text("""INSERT INTO events (incident_id, order_id, source, event_type, severity, message, payload)
+            VALUES (:incident_id, :order_id, 'ghosttrail', 'demo_recovery_completed', 'info',
+            'GhostTrail recorded approved simulated recovery. No carrier or fulfillment action occurred.', CAST(:payload AS JSONB))"""),
+            {"incident_id": row["incident_id"], "order_id": row["order_id"], "payload": json.dumps(result)})
+        db.execute(text("""INSERT INTO audit_log (incident_id, actor_type, actor_id, action, decision, reason, details)
+            VALUES (:incident_id, 'operator_demo_attestation', 'GhostTrail demo operator', 'execute_demo_recovery', 'completed',
+            'Approved simulated recovery recorded; real fulfillment unchanged.', CAST(:details AS JSONB))"""),
+            {"incident_id": row["incident_id"], "details": json.dumps({"plan_id": str(plan_id), "order_id": str(row["order_id"]), "simulated": True, "real_fulfillment_unchanged": True})})
+        db.commit()
+        return {"plan_id": str(plan_id), "order_id": str(row["order_id"]), "status": "completed", "simulated": True, "idempotent_replay": False, "customer_url": customer_url}
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Approved demo recovery could not be recorded.")
