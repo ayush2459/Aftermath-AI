@@ -229,7 +229,7 @@ function App() {
 
     try {
       const response = await fetch(
-        `${API}/api/agent-tools/list_shipments`
+        `${API}/api/agent-tools/list_shipments?customer_session=${encodeURIComponent(customerSession)}`
       );
 
       if (!response.ok) {
@@ -313,7 +313,7 @@ function App() {
     let active = true;
     const timer = window.setInterval(async () => {
       try {
-        const response = await fetch(`${API}/api/agent-tools/list_shipments`);
+        const response = await fetch(`${API}/api/agent-tools/list_shipments?customer_session=${encodeURIComponent(customerSession)}`);
         if (response.ok && active) {
           const data = await response.json();
           if (active) setShipments(data.shipments || []);
@@ -555,7 +555,7 @@ function App() {
             let sampleShipmentFailure = false;
             try {
               const statusResponse = await fetch(
-                `${API}/api/orders/${encodeURIComponent(order.order_id)}`
+                `${API}/api/orders/${encodeURIComponent(order.order_id)}?customer_session=${encodeURIComponent(customerSession)}`
               );
               if (statusResponse.ok) {
                 const orderStatus = await statusResponse.json();
