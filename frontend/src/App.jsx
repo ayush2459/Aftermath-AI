@@ -753,6 +753,7 @@ function App() {
         <nav>
           <a className={!isShipmentPage ? "active" : ""} href="/">Shop</a>
           <a className={isShipmentPage ? "active" : ""} href="/shipments">Shipment Monitoring</a>
+          <a href="/investigation">GhostTrail AI</a>
           {!isShipmentPage && <a href="#story">How it works</a>}
           {!isShipmentPage && <a href="#support">Support</a>}
         </nav>
