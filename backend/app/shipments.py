@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -10,6 +11,11 @@ router = APIRouter(
     prefix="/api/agent-tools",
     tags=["Agent business tools"],
 )
+
+
+class CompleteSampleRecoveryIn(BaseModel):
+    order_id: UUID
+    customer_session: str = Field(min_length=1, max_length=128)
 
 
 def _shipment(db: Session, order_id: UUID):
@@ -257,6 +263,8 @@ def list_shipments(db: Session = Depends(get_db)):
                 s.last_error,
                 s.updated_at AS shipment_updated_at,
 
+                demo_recovery.status AS demo_recovery_status,
+
                 i.incident_id,
                 i.status AS incident_status,
                 i.severity AS incident_severity,
@@ -275,6 +283,15 @@ def list_shipments(db: Session = Depends(get_db)):
 
             LEFT JOIN incidents i
                 ON i.order_id = o.order_id
+
+            LEFT JOIN LATERAL (
+                SELECT ra.status, ra.created_at
+                FROM recovery_actions ra
+                WHERE ra.incident_id = i.incident_id
+                  AND ra.action_type = 'sample_delivery_simulation'
+                ORDER BY ra.created_at DESC
+                LIMIT 1
+            ) demo_recovery ON TRUE
 
             LEFT JOIN LATERAL (
                 SELECT json_agg(
@@ -313,4 +330,72 @@ def list_shipments(db: Session = Depends(get_db)):
         "count": len(rows),
         "shipments": [dict(row) for row in rows],
     }
+
+
+@router.post("/complete_sample_recovery")
+def complete_sample_recovery(
+    payload: CompleteSampleRecoveryIn,
+    db: Session = Depends(get_db),
+):
+    """Record a customer-authorized sample resolution without changing real fulfillment."""
+    try:
+        row = db.execute(
+            text("""
+                SELECT o.customer_session, o.incident_id,
+                       p.status AS payment_status,
+                       s.status AS shipment_status, s.last_error
+                FROM orders o
+                JOIN payments p ON p.order_id = o.order_id
+                JOIN shipments s ON s.order_id = o.order_id
+                WHERE o.order_id = :order_id
+                FOR UPDATE OF o
+            """),
+            {"order_id": payload.order_id},
+        ).mappings().first()
+
+        if not row or row["customer_session"] != payload.customer_session:
+            raise HTTPException(status_code=404, detail="Sample order not found.")
+        if (
+            row["payment_status"] != "captured"
+            or row["shipment_status"] != "failed"
+            or not (row["last_error"] or "").startswith("Seeded demo failure:")
+            or not row["incident_id"]
+        ):
+            raise HTTPException(status_code=409, detail="This order has no eligible sample recovery.")
+
+        db.execute(
+            text("""
+                INSERT INTO recovery_actions (
+                    incident_id, action_type, status, idempotency_key, input, result
+                ) VALUES (
+                    :incident_id, 'sample_delivery_simulation', 'completed',
+                    :idempotency_key, CAST(:input AS JSONB), CAST(:result AS JSONB)
+                )
+                ON CONFLICT (idempotency_key) DO NOTHING
+            """),
+            {
+                "incident_id": row["incident_id"],
+                "idempotency_key": f"sample-delivery:{payload.order_id}",
+                "input": '{"customer_confirmed": true, "simulated": true}',
+                "result": '{"sample_resolution": "delivered", "simulated": true}',
+            },
+        )
+        action_status = db.execute(
+            text("""
+                SELECT status FROM recovery_actions
+                WHERE idempotency_key = :idempotency_key
+            """),
+            {"idempotency_key": f"sample-delivery:{payload.order_id}"},
+        ).scalar_one()
+        if action_status != "completed":
+            raise HTTPException(status_code=409, detail="Sample recovery is not complete.")
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Sample recovery could not be recorded.")
+
+    return {"order_id": str(payload.order_id), "demo_recovery_status": "completed"}
 

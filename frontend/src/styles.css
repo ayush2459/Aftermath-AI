@@ -338,6 +338,52 @@
   outline-offset: 2px;
 }
 
+.sample-recovery-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 22px;
+  padding: 18px;
+  border: 1px solid rgba(196,243,107,.35);
+  border-radius: 8px;
+  background: rgba(196,243,107,.07);
+}
+
+.sample-recovery-prompt b {
+  font-size: 14px;
+}
+
+.sample-recovery-prompt p,
+.sample-recovery-message {
+  color: #a3adbf;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.sample-recovery-prompt button {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 6px;
+  background: #c4f36b;
+  color: #101827;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sample-recovery-prompt button:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+
+@media (max-width: 620px) {
+  .sample-recovery-prompt {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 .shipment-footer .tracking-reference {
   display: grid;
   gap: 4px;

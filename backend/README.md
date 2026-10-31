@@ -119,3 +119,9 @@ psql -U postgres -d aftermath_ai -f .\database\shipment_agent_tools_migration.sq
 ```
 
 For a fresh database, the new columns are also included in `database/schema.sql`. These read-only tools do not fabricate a location or ETA and return HTTP 404 when the order has no shipment.
+
+### Sample recovery after customer support
+
+Seeded demo shipment failures remain visible in the shipment monitor until a sample recovery is explicitly completed. A support reply can link the customer to `/shipments?order=<order-uuid>&recover=1`. The page asks the customer to confirm the illustrative resolution; it then calls `POST /api/agent-tools/complete_sample_recovery` with that order and the browser's existing customer session. The endpoint accepts only a captured test payment and a seeded demo failure belonging to that session. It records one idempotent `sample_delivery_simulation` action in `recovery_actions`. The shipment page refreshes periodically and shows the sample Delivered/Resolved view only after that action is completed.
+
+This does not modify the actual payment, shipment, order, incident, or carrier records. The recorded failure remains available for investigation. Real delivery confirmation requires a carrier integration.
