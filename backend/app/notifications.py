@@ -111,9 +111,8 @@ def dispatch_discord_alert(db, incident_id, notification_key="incident.created")
                     (status = 'pending' AND updated_at <= NOW())
                     OR (
                         status = 'failed'
-                        AND updated_at <= NOW() - (
-                            INTERVAL '30 seconds'
-                            * POWER(2, GREATEST(attempts - 1, 0))
+                        AND updated_at <= NOW() - make_interval(
+                            secs => LEAST(900, 30 * POWER(2, GREATEST(attempts - 1, 0))::INTEGER)
                         )
                     )
                     OR (
