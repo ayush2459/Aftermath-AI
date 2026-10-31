@@ -1,81 +1,84 @@
-# Phase 3: GhostTrail investigation and safe recovery planning
+# Phase 3: GhostTrail AI investigation and safe recovery planning
 
-## Goal
+## Delivered
 
-Turn Aftermath AI from an incident-alerting demo into an evidence-led investigation and recovery-planning system. Phase 3 builds on the Phase 2 notification outbox and incident records; it does not replace PostgreSQL as the source of truth.
+- Deterministic incident evidence collection at `GET /api/agent-tools/investigate/{incident_id}`.
+- State reconciliation for payment, order, inventory reservations, and shipment records.
+- Evidence timeline, audit records, and notification delivery state in investigation output.
+- AI diagnosis at `POST /api/agent-tools/diagnose/{incident_id}`.
+- OpenAI-compatible chat-completions adapter; defaults to Groq-compatible base URL and configurable model.
+- Strict diagnosis schema validation; evidence references must match collected finding codes.
+- Deterministic fallback when no AI key is configured, provider call fails, or provider output is invalid.
+- Persisted diagnosis in the existing `evidence` table and audit log.
+- Recovery proposal at `POST /api/recovery/propose/{incident_id}`.
+- Approval decision record at `POST /api/recovery/plans/{plan_id}/decision`.
+- Recovery proposals include preconditions, expected effect, risk, idempotency strategy, and verification criteria.
+- Approval and rejection are auditable. Neither decision executes the proposed action.
+- Regression tests for reconciliation, diagnosis validation, and recovery proposal rules.
+- CI on Phase 3 pushes and pull requests targeting Phase 3.
 
-## Phase 2 dependency
+## Local configuration
 
-- Base branch: `phase-2/discord-operations`.
-- Phase 2 PR #8 remains separate and must be merged before this phase is merged into Phase 1/main.
-- The notification worker remains a separate process. Local development may run it alongside the API.
-- Existing database migrations must be additive. Never re-run the bootstrap schema against an existing database.
+Optional environment variables in `backend/.env`:
 
-## Scope
+```dotenv
+AI_API_KEY=
+AI_BASE_URL=https://api.groq.com/openai/v1
+AI_MODEL=llama-3.3-70b-versatile
+```
 
-### 1. GhostTrail evidence collection
+If `AI_API_KEY` is absent, diagnosis uses the deterministic fallback. Keep provider credentials on the backend only; never expose them in frontend variables or commit them.
 
-- Build an investigation service for a single incident.
-- Gather the related order, payment verification/payment state, inventory reservation, shipment, incident, event timeline, audit entries, and notification-delivery state where available.
-- Use bounded, deterministic database queries and stable ordering.
-- Record source, observation time, and whether each item is confirmed, missing, stale, or contradictory.
-- Do not treat a missing record as proof that an external action did not occur.
+## API workflow
 
-### 2. State reconciliation
+1. Collect evidence:
 
-- Define an explicit state snapshot for payment, order, inventory, and shipment.
-- Detect known inconsistencies (for example, captured test payment with failed shipment creation, or an order marked fulfilled without a verified shipment).
-- Return findings with evidence references and severity; do not silently mutate business state.
-- Keep Razorpay in Test Mode and label seeded/demo carrier failures as simulated.
+   `GET /api/agent-tools/investigate/{incident_id}?customer_session=...`
 
-### 3. AI-assisted diagnosis
+2. Generate and persist diagnosis:
 
-- Add an LLM provider adapter behind a configuration boundary; support deterministic fallback when no provider is configured.
-- Send only the minimum incident evidence needed for diagnosis.
-- Require a versioned, validated structured response: summary, likely cause, evidence references, confidence, unknowns, and recommended next step.
-- Treat model output as untrusted advice. Reject invalid evidence references and never let the model directly execute SQL, call payment APIs, or create shipments.
-- Persist diagnosis metadata and output so investigations are auditable and repeatable.
+   `POST /api/agent-tools/diagnose/{incident_id}?customer_session=...`
 
-### 4. Recovery planning
+3. Generate a recovery proposal and pending approval record:
 
-- Generate typed recovery proposals: retry a safe idempotent step, continue a workflow, compensate, or request operator review.
-- Each proposal must include preconditions, expected effects, risk/severity, idempotency key strategy, and verification query.
-- Mark actions requiring external side effects as approval-required.
-- Phase 3 may expose approval and execution interfaces, but no high-impact action executes without an explicit operator approval record.
+   `POST /api/recovery/propose/{incident_id}?customer_session=...`
 
-### 5. Read-back verification
+4. Record a demo operator decision:
 
-- After any permitted demo-safe action, re-read authoritative database state.
-- Mark recovery complete only when defined invariants pass.
-- Otherwise retain the incident as open or recovery-required and explain which invariant failed.
-- Keep an audit trail of proposal, approval, execution attempt, and verification result.
+   `POST /api/recovery/plans/{plan_id}/decision`
 
-## Explicit exclusions
+   JSON body:
 
-- No customer login, customer accounts, RBAC, or access-management layer.
-- No production payment processing, live refunds, or automatic payment retries.
-- No live carrier integration, real parcel movement, or claims of live tracking.
-- No autonomous high-impact actions.
-- No replacing PostgreSQL records with LLM-generated state.
-- No breaking changes to Phase 1/2 contracts without an additive migration and regression tests.
+   ```json
+   {
+     "customer_session": "same-browser-session",
+     "decided_by": "operator-display-name",
+     "decision": "approved",
+     "reason": "Reviewed the evidence and accepted the proposed next step."
+   }
+   ```
 
-## Suggested implementation sequence
+   Use `rejected` to decline the proposal. A decision is one-time and audited.
 
-1. Inspect and document existing database models, event contracts, and service boundaries.
-2. Implement deterministic incident evidence collection and reconciliation with unit/integration tests.
-3. Add versioned diagnosis schemas and a provider-independent diagnosis service with deterministic fallback.
-4. Add recovery proposal models and approval/audit records.
-5. Implement demo-safe action execution and read-back verification.
-6. Add API endpoints and a focused operator-facing investigation view.
-7. Add CI coverage and an end-to-end test using seeded demo incidents.
+## Safety and limitations
 
-## Acceptance criteria
+- LLM output is untrusted advisory content. It cannot execute SQL, invoke payment/carrier APIs, or change business state.
+- Only collected finding codes can be referenced by a diagnosis. Invalid output falls back to deterministic rules.
+- No payment retry, refund, stock adjustment, or shipment creation is implemented by this phase.
+- Approval endpoint records a demo attestation only. There is no authenticated operator identity, and the endpoint must not be treated as a production authorization boundary.
+- Do not expose the demo approval API publicly as a production control until real operator authentication/authorization is designed and reviewed.
+- Existing seeded carrier failures remain simulated. No live carrier feed or physical parcel tracking is introduced.
+- Razorpay remains Test Mode.
+- No customer accounts, login, or RBAC are added.
+- Uses existing `evidence`, `recovery_plans`, `approvals`, and `audit_log` tables from the bootstrap schema; this phase adds no database migration.
 
-- An incident investigation can be generated entirely from persisted evidence without an LLM.
-- Findings distinguish confirmed facts, missing evidence, stale observations, and contradictions.
-- Every diagnosis claim references collected evidence or is explicitly labelled uncertain.
-- LLM output cannot execute tools or mutate business state.
-- Recovery proposals are structured, idempotency-aware, and approval-gated.
-- A demo-safe recovery is not marked complete until read-back invariants pass.
-- Existing Phase 1 and Phase 2 tests continue to pass.
-- All demo/test-mode and simulated-carrier boundaries are visible in API responses and UI.
+## Validation
+
+From `backend`:
+
+```bash
+PYTHONPATH=. pytest tests -q
+python -m compileall -q app
+```
+
+CI additionally runs frontend tests and the production frontend build.
