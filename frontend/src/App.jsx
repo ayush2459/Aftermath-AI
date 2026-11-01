@@ -202,7 +202,7 @@ function App() {
 
   // Shipment dashboard state
   const [dashboardClearCutoff] = useState(() => {
-    const key = "aftermath_dashboard_orders_cleared_at";
+    const key = "aftermath_dashboard_orders_cleared_at_v2";
     let cutoff = localStorage.getItem(key);
     if (!cutoff) {
       cutoff = new Date().toISOString();
