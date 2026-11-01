@@ -1,6 +1,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { sampleJourneyStage, sampleTrackingNumber, shouldOpenSampleJourney, shouldShowSampleResolution } from "./demoTracking";
+import GhostTrail from "./GhostTrail.jsx";
 import {
   ArrowRight,
   Check,
@@ -201,7 +202,7 @@ function App() {
 
   // Shipment dashboard state
   const [dashboardClearCutoff] = useState(() => {
-    const key = "aftermath_dashboard_orders_cleared_at";
+    const key = "aftermath_dashboard_orders_cleared_at_v2";
     let cutoff = localStorage.getItem(key);
     if (!cutoff) {
       cutoff = new Date().toISOString();
@@ -229,6 +230,10 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     return params.get("view") === "sample" ? params.get("order") : null;
   });
+  const [recoveredViewOrderId] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("view") === "recovered" ? params.get("order") : null;
+  });
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [recoveryMessage, setRecoveryMessage] = useState("");
   const [recoveryComplete, setRecoveryComplete] = useState(false);
@@ -253,6 +258,10 @@ function App() {
 
       const data = await response.json();
       const records = visibleDashboardOrders(data.shipments || []);
+      if (recoveredViewOrderId) {
+        const linkedOrder = (data.shipments || []).find((item) => item.order_id === recoveredViewOrderId);
+        if (linkedOrder && !records.some((item) => item.order_id === recoveredViewOrderId)) records.push(linkedOrder);
+      }
 
       setShipments(records);
 
@@ -718,6 +727,7 @@ function App() {
   };
 
   const matchingShipments = shipments.filter((shipment) => {
+    if (recoveredViewOrderId) return shipment.order_id === recoveredViewOrderId;
     const query = trackingQuery.trim().toLowerCase();
     if (!query) return true;
 
@@ -727,6 +737,8 @@ function App() {
       sampleTrackingNumber(shipment)
     ].some((value) => value?.toLowerCase().includes(query));
   });
+
+  if (window.location.pathname.replace(/\/+$/, "") === "/investigation") return <GhostTrail />;
 
   return (
     <div className={`app-shell ${isShipmentPage ? "shipment-page" : "storefront-page"}`} >
@@ -750,6 +762,7 @@ function App() {
         <nav>
           <a className={!isShipmentPage ? "active" : ""} href="/">Shop</a>
           <a className={isShipmentPage ? "active" : ""} href="/shipments">Shipment Monitoring</a>
+          <a href="/investigation">GhostTrail AI</a>
           {!isShipmentPage && <a href="#story">How it works</a>}
           {!isShipmentPage && <a href="#support">Support</a>}
         </nav>
@@ -985,6 +998,9 @@ function App() {
             />
           </label>
 
+          {recoveredViewOrderId && (
+            <div className="sample-recovery-prompt" role="status"><div><b>GhostTrail demo recovery recorded</b><p>Order {recoveredViewOrderId}. Persisted simulation only; not a carrier shipment or proof of delivery.</p></div><button type="button" onClick={refreshShipments} disabled={shipmentsLoading}>Refresh order</button></div>
+          )}
           {recoveryOrderId && !recoveryComplete && (
             <div className="sample-recovery-prompt" role="note">
               <div>
@@ -1046,6 +1062,7 @@ function App() {
                 const isDemoFailure = shipment.last_error?.startsWith(
                   "Seeded demo failure:"
                 );
+                const ghosttrailRecovered = shipment.ghosttrail_recovery_status === "completed";
 
                 return (
                   <article
@@ -1062,16 +1079,15 @@ function App() {
                         <h3>{shipment.order_id}</h3>
                       </div>
 
-                      <span
-                        className={`shipment-status ${
-                          shipment.shipment_status || "unknown"
-                        }`}
-                      >
-                        {readable(shipment.shipment_status)}
+                      <span className={`shipment-status ${ghosttrailRecovered ? "demo-status" : shipment.shipment_status || "unknown"}`}>
+                        {ghosttrailRecovered ? "Recovered (demo)" : readable(shipment.shipment_status)}
                       </span>
                     </div>
 
-                    {isDemoFailure && (
+                    {ghosttrailRecovered && (
+                      <div className="shipment-demo-note" role="note"><b>GhostTrail recovery recorded · Simulation only</b><p>The approval and recovery record are persisted. Carrier, payment, inventory and real fulfillment remain unchanged.</p></div>
+                    )}
+                    {isDemoFailure && !ghosttrailRecovered && (
                       <div className="shipment-demo-note" role="note">
                         <b>Test order · No parcel will be shipped</b>
                         <p>
@@ -1320,25 +1336,37 @@ function App() {
                       )}
                     </div>
 
-                    <div className="discord-help-card">
-                      <div className="discord-help-icon">
-                        <MessageCircle size={21} />
+                    {isDemoFailure && !ghosttrailRecovered && (
+                      <div className="discord-help-card ghosttrail-entry-card">
+                        <div className="discord-help-icon">
+                          <Sparkles size={21} />
+                        </div>
+                        <div className="discord-help-copy">
+                          <span className="eyebrow">START SHIPMENT RECOVERY</span>
+                          <b>Let GhostTrail AI investigate this shipment failure.</b>
+                          <p>GhostTrail will collect evidence, diagnose the cause, prepare a recovery plan and record the approval workflow for this order.</p>
+                        </div>
+                        <a
+                          className="discord-help-button"
+                          href={`/investigation?order=${encodeURIComponent(shipment.order_id)}`}
+                        >
+                          Open GhostTrail AI <ArrowRight size={15} />
+                        </a>
                       </div>
-                      <div className="discord-help-copy">
-                        <span className="eyebrow">QUESTIONS ABOUT THIS STATUS?</span>
-                        <b>Ask our Aftermath AI bot to explain it.</b>
-                        <p>Include the order reference above when asking for help with this test shipment.</p>
+                    )}
+                    {ghosttrailRecovered && (
+                      <div className="discord-help-card">
+                        <div className="discord-help-icon"><MessageCircle size={21} /></div>
+                        <div className="discord-help-copy">
+                          <span className="eyebrow">GHOSTTRAIL WORKFLOW RECORDED</span>
+                          <b>Continue customer-facing support through Aftermath AI on Discord.</b>
+                          <p>Use the order reference when opening the bot. This demo recovery does not represent a real shipment.</p>
+                        </div>
+                        <a className="discord-help-button" href="https://discord.gg/6sCDwusbw" target="_blank" rel="noopener noreferrer">
+                          Continue on Discord <ArrowRight size={15} />
+                        </a>
                       </div>
-                      <a
-                        className="discord-help-button"
-                        href="https://discord.gg/6sCDwusbw"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Open Aftermath AI on Discord
-                        <ArrowRight size={15} />
-                      </a>
-                    </div>
+                    )}
 
                     <div className="shipment-footer">
                       <span>

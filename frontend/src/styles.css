@@ -840,3 +840,48 @@
   font-size: 12px;
   line-height: 1.6;
 }
+
+
+/* GhostTrail investigation workspace */
+.ghosttrail-page{min-height:100vh;padding:38px max(5vw,22px) 70px;background:radial-gradient(ellipse at 85% 0%,rgba(196,243,107,.08),transparent 34%),#0b1020;color:#f3f3ee}
+.ghosttrail-top{max-width:1120px;margin:0 auto 30px}
+.ghosttrail-back{display:inline-flex;align-items:center;gap:8px;color:#c4f36b;font-size:12px;margin-bottom:38px}
+.ghosttrail-top h1{font:700 clamp(38px,5vw,58px)/1.08 Manrope,sans-serif;letter-spacing:-2.8px;margin:14px 0}
+.ghosttrail-top h1 em{font-style:normal;color:#c4f36b}
+.ghosttrail-top p,.ghosttrail-panel>p{color:#a3adbf;line-height:1.7;font-size:13px;max-width:720px}
+.ghosttrail-panel{max-width:1120px;margin:18px auto;padding:25px;border:1px solid rgba(255,255,255,.11);border-radius:12px;background:#121a2c;box-shadow:0 20px 55px #0002}
+.ghosttrail-panel-head{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:20px}
+.ghosttrail-panel-head h2{display:flex;align-items:center;gap:9px;font:700 22px Manrope;margin:8px 0 0}
+.ghosttrail-panel select,.ghosttrail-approval input,.ghosttrail-approval textarea{width:100%;border:1px solid #ffffff25;border-radius:7px;background:#0b1424;color:#f3f3ee;padding:13px;font:inherit;font-size:12px}
+.ghosttrail-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:17px}
+.ghosttrail-primary,.ghosttrail-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 15px;border-radius:6px;font-size:11px;font-weight:800;cursor:pointer}
+.ghosttrail-primary{border:1px solid #c4f36b;background:#c4f36b;color:#10170b}
+.ghosttrail-secondary{border:1px solid #ffffff2b;background:#1a2639;color:#e7ecf4}
+.ghosttrail-primary:disabled,.ghosttrail-secondary:disabled{opacity:.45;cursor:not-allowed}
+.ghosttrail-tag{padding:7px 10px;border-radius:30px;background:#c4f36b18;color:#c4f36b;font-size:10px;font-weight:700}
+.ghosttrail-muted,.ghosttrail-disclaimer{color:#929db0;font-size:12px;line-height:1.6}
+.ghosttrail-error{padding:12px;border:1px solid #ff858555;background:#ff858511;color:#ff9b8e;border-radius:6px;font-size:12px}
+.ghosttrail-state-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0}
+.ghosttrail-state-grid>div{padding:15px;background:#0c1525;border:1px solid #ffffff12;border-radius:7px}
+.ghosttrail-state-grid small,.ghosttrail-state-grid b{display:block}
+.ghosttrail-state-grid small{font-size:9px;letter-spacing:1.3px;color:#929db0;margin-bottom:8px}
+.ghosttrail-state-grid b{font-size:14px;text-transform:capitalize}
+.ghosttrail-finding{display:flex;align-items:flex-start;gap:12px;padding:14px 0;border-top:1px solid #ffffff12}
+.ghosttrail-finding>svg{color:#ffbd72;flex:0 0 auto}
+.ghosttrail-finding>div{flex:1}
+.ghosttrail-finding b{text-transform:capitalize;font-size:12px}
+.ghosttrail-finding p,.ghosttrail-action-card p{font-size:11px;color:#a3adbf;line-height:1.6;margin:6px 0 0}
+.ghosttrail-finding>span{font-size:10px;color:#ffbd72;text-transform:uppercase}
+.ghosttrail-panel details{margin-top:15px;color:#c4f36b;font-size:12px}
+.ghosttrail-panel pre{max-height:340px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#09111e;color:#c8d2df;border-radius:7px;padding:15px;font-size:10px;line-height:1.6}
+.ghosttrail-panel h3{font:700 18px Manrope}
+.ghosttrail-confidence{display:inline-block;padding:8px 10px;border-radius:5px;background:#c4f36b15;color:#c4f36b;font-size:11px;font-weight:700;margin:10px 0}
+.ghosttrail-action-card{padding:17px;margin:12px 0;background:#0c1525;border:1px solid #ffffff13;border-radius:8px}
+.ghosttrail-action-card>b{font-size:13px}
+.ghosttrail-approval{border-top:1px solid #ffffff15;margin-top:22px;padding-top:20px}
+.ghosttrail-approval>b{font:700 16px Manrope}
+.ghosttrail-approval>p{color:#a3adbf;font-size:11px;line-height:1.6}
+.ghosttrail-approval input,.ghosttrail-approval textarea{margin-top:10px}
+.ghosttrail-approval textarea{min-height:75px;resize:vertical}
+.ghosttrail-disclaimer{max-width:1120px;margin:22px auto;text-align:center}
+@media(max-width:640px){.ghosttrail-page{padding:25px 14px 50px}.ghosttrail-panel{padding:17px}.ghosttrail-state-grid{grid-template-columns:1fr}.ghosttrail-panel-head{align-items:flex-start;flex-direction:column}.ghosttrail-actions>*{flex:1 1 100%}.ghosttrail-top h1{font-size:40px}}
