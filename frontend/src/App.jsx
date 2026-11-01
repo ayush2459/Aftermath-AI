@@ -1336,25 +1336,37 @@ function App() {
                       )}
                     </div>
 
-                    <div className="discord-help-card">
-                      <div className="discord-help-icon">
-                        <MessageCircle size={21} />
+                    {isDemoFailure && !ghosttrailRecovered && (
+                      <div className="discord-help-card ghosttrail-entry-card">
+                        <div className="discord-help-icon">
+                          <Sparkles size={21} />
+                        </div>
+                        <div className="discord-help-copy">
+                          <span className="eyebrow">START SHIPMENT RECOVERY</span>
+                          <b>Let GhostTrail AI investigate this shipment failure.</b>
+                          <p>GhostTrail will collect evidence, diagnose the cause, prepare a recovery plan and record the approval workflow for this order.</p>
+                        </div>
+                        <a
+                          className="discord-help-button"
+                          href={`/investigation?order=${encodeURIComponent(shipment.order_id)}`}
+                        >
+                          Open GhostTrail AI <ArrowRight size={15} />
+                        </a>
                       </div>
-                      <div className="discord-help-copy">
-                        <span className="eyebrow">QUESTIONS ABOUT THIS STATUS?</span>
-                        <b>Ask our Aftermath AI bot to explain it.</b>
-                        <p>Include the order reference above when asking for help with this test shipment.</p>
+                    )}
+                    {ghosttrailRecovered && (
+                      <div className="discord-help-card">
+                        <div className="discord-help-icon"><MessageCircle size={21} /></div>
+                        <div className="discord-help-copy">
+                          <span className="eyebrow">GHOSTTRAIL WORKFLOW RECORDED</span>
+                          <b>Continue customer-facing support through Aftermath AI on Discord.</b>
+                          <p>Use the order reference when opening the bot. This demo recovery does not represent a real shipment.</p>
+                        </div>
+                        <a className="discord-help-button" href="https://discord.gg/6sCDwusbw" target="_blank" rel="noopener noreferrer">
+                          Continue on Discord <ArrowRight size={15} />
+                        </a>
                       </div>
-                      <a
-                        className="discord-help-button"
-                        href="https://discord.gg/6sCDwusbw"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Open Aftermath AI on Discord
-                        <ArrowRight size={15} />
-                      </a>
-                    </div>
+                    )}
 
                     <div className="shipment-footer">
                       <span>
