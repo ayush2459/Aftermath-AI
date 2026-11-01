@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, BrainCircuit, ClipboardCheck, RefreshCw, ShieldAlert, Sparkles } from "lucide-react";
+import { ArrowLeft, BrainCircuit, ClipboardCheck, MessageCircle, RefreshCw, ShieldAlert, Sparkles } from "lucide-react";
 
 const API = (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 const session = () => {
@@ -24,6 +24,7 @@ export default function GhostTrail() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const customerSession = session();
+  const requestedOrderId = new URLSearchParams(window.location.search).get("order");
 
   const request = async (path, options = {}) => {
     const response = await fetch(`${API}${path}`, options);
@@ -39,7 +40,9 @@ export default function GhostTrail() {
       const data = await request(`/api/agent-tools/list_shipments?customer_session=${encodeURIComponent(customerSession)}`);
       const available = (data.shipments || []).filter((item) => item.incident_id);
       setOrders(available);
-      if (!selected && available.length) setSelected(available[0].incident_id);
+      const requested = requestedOrderId && available.find((item) => item.order_id === requestedOrderId);
+      if (requested) setSelected(requested.incident_id);
+      else if (!selected && available.length) setSelected(available[0].incident_id);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -183,6 +186,17 @@ export default function GhostTrail() {
             <b>Approved demo recovery recorded</b>
             <p>Simulation only. Real fulfillment remains unchanged.</p>
             <a href={plan.execution.customer_url}>Open customer shipment page</a>
+            <div className="discord-help-card ghosttrail-discord-next">
+              <div className="discord-help-icon"><MessageCircle size={21} /></div>
+              <div className="discord-help-copy">
+                <span className="eyebrow">CONTINUE CUSTOMER SUPPORT</span>
+                <b>GhostTrail has completed its investigation and recorded the approved demo recovery.</b>
+                <p>Continue in Discord for customer-facing explanations and support. Include order reference: {plan.execution.order_id}</p>
+              </div>
+              <a className="discord-help-button" href="https://discord.gg/6sCDwusbw" target="_blank" rel="noopener noreferrer">
+                Continue with Aftermath AI on Discord <MessageCircle size={15} />
+              </a>
+            </div>
           </div>
         )}
       </section>}
