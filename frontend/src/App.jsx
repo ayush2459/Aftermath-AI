@@ -730,11 +730,13 @@ function App() {
     const query = trackingQuery.trim().toLowerCase();
     if (!query) return true;
 
+    // A supplied order reference or tracking number selects one exact order.
+    // Avoid partial matches that can surface unrelated historical orders.
     return [
       shipment.order_id,
       shipment.tracking_number,
       sampleTrackingNumber(shipment)
-    ].some((value) => value?.toLowerCase().includes(query));
+    ].some((value) => value && String(value).toLowerCase() === query);
   });
 
   if (window.location.pathname.replace(/\/+$/, "") === "/investigation") return <GhostTrail />;
