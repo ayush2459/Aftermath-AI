@@ -1153,3 +1153,34 @@
 .ops-error{display:flex;gap:8px;max-width:1440px;margin:10px auto;padding:12px;border:1px solid #ff858555;border-radius:7px;color:#ffaaaa;background:#ff858511;font-size:11px}.ops-loading{color:#c4f36b;font-size:10px;margin-top:10px}.ops-footer{margin-top:22px;color:#78869d;font-size:10px;text-align:center}
 @media(max-width:900px){.ops-layout{grid-template-columns:1fr}.ops-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:560px){.ops-page{padding:24px 13px 45px}.ops-heading-row{align-items:flex-start;flex-direction:column}.ops-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ops-panel{padding:15px}.ops-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.ops-plan-head{flex-direction:column}}
+
+
+/* Phase 4 interaction polish: GhostTrail + operations */
+.ghosttrail-page,.ops-page{background-color:#090e1b;background-image:radial-gradient(ellipse at 12% 12%,rgba(88,101,242,.10),transparent 32%),radial-gradient(ellipse at 88% 5%,rgba(196,243,107,.09),transparent 34%),linear-gradient(180deg,#0b1020 0%,#090e1b 100%)}
+.ghosttrail-panel,.ops-panel,.ops-kpis article{backdrop-filter:blur(14px);transition:border-color .22s ease,transform .22s ease,box-shadow .22s ease}
+.ghosttrail-panel:hover,.ops-panel:hover{border-color:rgba(196,243,107,.22);box-shadow:0 24px 65px rgba(0,0,0,.25)}
+.ghosttrail-panel{border-radius:16px;padding:clamp(18px,3vw,30px)}
+.ghosttrail-tag,.ops-status,.ops-severity{letter-spacing:.45px}
+.ghosttrail-primary,.ghosttrail-secondary,.ops-heading-row button,.ops-incident,.discord-help-button{transition:transform .18s ease,border-color .18s ease,background .18s ease,box-shadow .18s ease}
+.ghosttrail-primary:hover:not(:disabled),.ghosttrail-secondary:hover:not(:disabled),.ops-heading-row button:hover,.discord-help-button:hover{transform:translateY(-2px);box-shadow:0 9px 24px rgba(0,0,0,.22)}
+.ghosttrail-command-guide{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:18px 0}
+.ghosttrail-command-guide>div{display:flex;flex-direction:column;gap:9px;min-width:0;padding:14px;border:1px solid rgba(88,101,242,.26);border-radius:10px;background:linear-gradient(150deg,rgba(88,101,242,.12),rgba(255,255,255,.025))}
+.ghosttrail-command-guide span{color:#aeb8ff;font-size:9px;font-weight:800;letter-spacing:1px}
+.ghosttrail-command-guide code{display:block;padding:10px;border-radius:6px;background:#080e1a;color:#e6ebff;font-size:11px;overflow-wrap:anywhere;user-select:all}
+.ghosttrail-command-guide small{color:#9aa7bb;font-size:10px;line-height:1.5}
+.ghosttrail-handoff-ready{border-color:rgba(88,101,242,.5);background:linear-gradient(145deg,rgba(88,101,242,.075),#121a2c 45%)}
+.ghosttrail-handoff-ready .ghosttrail-diagnosis{border-color:rgba(88,101,242,.32);background:rgba(88,101,242,.075)}
+.ghosttrail-pipeline-step{transition:background .2s ease,padding .2s ease}
+.ghosttrail-pipeline-step.current{padding-left:10px;padding-right:10px;border-radius:8px;background:rgba(88,101,242,.07)}
+.ghosttrail-pipeline-step.complete .ghosttrail-pipeline-icon{box-shadow:0 0 0 4px rgba(196,243,107,.06)}
+.ops-kpis article{border-radius:13px;background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.012))}
+.ops-kpis article:hover{transform:translateY(-3px);border-color:rgba(196,243,107,.3)}
+.ops-incident{border-radius:8px;padding:15px 10px}
+.ops-incident:hover{background:rgba(255,255,255,.035);padding-left:14px;padding-right:14px}
+.ops-incident.selected{border:1px solid rgba(196,243,107,.28)}
+.ops-plan,.ops-facts>div{border-radius:10px}
+.ops-timeline{position:relative}
+.ops-timeline>span{box-shadow:0 0 0 4px rgba(196,243,107,.08)}
+button:focus-visible,a:focus-visible{outline:2px solid #c4f36b;outline-offset:3px}
+@media(max-width:760px){.ghosttrail-command-guide{grid-template-columns:1fr}.ghosttrail-command-guide>div{display:grid;grid-template-columns:1fr;gap:7px}.ghosttrail-panel-head h2{font-size:19px}}
+@media(prefers-reduced-motion:reduce){.ghosttrail-panel,.ops-panel,.ops-kpis article,.ghosttrail-primary,.ghosttrail-secondary,.ops-incident,.discord-help-button{transition:none!important}.spin{animation:none!important}}
