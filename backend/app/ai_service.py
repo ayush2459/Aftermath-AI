@@ -49,6 +49,37 @@ def deterministic_diagnosis(snapshot: dict[str, Any], findings: list[dict[str, s
     }
 
 
+def _normalize_confidence(raw: Any) -> float:
+    """Normalize model confidence to a finite probability in the range [0, 1]."""
+    labels = {"high": 0.8, "medium": 0.5, "low": 0.2}
+    if isinstance(raw, bool):
+        raise ValueError("Confidence must be numeric or high, medium, low.")
+    if isinstance(raw, str):
+        normalized = raw.strip().lower()
+        if normalized in labels:
+            return labels[normalized]
+        is_percent = normalized.endswith("%")
+        if is_percent:
+            normalized = normalized[:-1].strip()
+        try:
+            confidence = float(normalized)
+        except ValueError as exc:
+            raise ValueError("Confidence must be numeric or high, medium, low.") from exc
+        if is_percent or confidence > 1:
+            confidence /= 100
+    elif isinstance(raw, (int, float)):
+        confidence = float(raw)
+        if confidence > 1:
+            confidence /= 100
+    else:
+        raise ValueError("Confidence must be numeric or high, medium, low.")
+
+    import math
+    if not math.isfinite(confidence) or not 0 <= confidence <= 1:
+        raise ValueError("Confidence must be between 0 and 1 (or 0 and 100 percent).")
+    return confidence
+
+
 def validate_diagnosis(value: Any, allowed_refs: set[str]) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("Diagnosis must be a JSON object.")
@@ -61,18 +92,16 @@ def validate_diagnosis(value: Any, allowed_refs: set[str]) -> dict[str, Any]:
     refs = value["evidence_refs"]
     if not isinstance(refs, list) or any(not isinstance(ref, str) or ref not in allowed_refs for ref in refs):
         raise ValueError("Diagnosis references evidence that was not collected.")
-    confidence = value["confidence"]
-    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) or not 0 <= confidence <= 1:
-        raise ValueError("Confidence must be between 0 and 1.")
     unknowns = value["unknowns"]
     if not isinstance(unknowns, list) or any(not isinstance(item, str) for item in unknowns):
         raise ValueError("Unknowns must be a list of strings.")
     allowed_steps = {"operator_review", "reconcile_external_state", "continue_monitoring"}
     if value["recommended_next_step"] not in allowed_steps:
         raise ValueError("Unsupported recommended next step.")
-    return value
 
-
+    validated = dict(value)
+    validated["confidence"] = _normalize_confidence(value["confidence"])
+    return validated
 def _llm_diagnosis(snapshot: dict[str, Any], findings: list[dict[str, str]]) -> dict[str, Any] | None:
     api_key = os.getenv("AI_API_KEY", "").strip()
     if not api_key:
@@ -101,7 +130,11 @@ def _llm_diagnosis(snapshot: dict[str, Any], findings: list[dict[str, str]]) -> 
     request = Request(
         f"{base_url}/chat/completions",
         data=body,
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "AftermathAI/1.0",
+        },
         method="POST",
     )
     try:
@@ -109,7 +142,12 @@ def _llm_diagnosis(snapshot: dict[str, Any], findings: list[dict[str, str]]) -> 
             payload = json.loads(response.read().decode("utf-8"))
         raw = payload["choices"][0]["message"]["content"]
         return validate_diagnosis(json.loads(raw), allowed_refs)
-    except (URLError, TimeoutError, KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError):
+    except (URLError, TimeoutError, OSError, KeyError, IndexError, TypeError, ValueError) as exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            "GhostTrail AI provider failed; using deterministic fallback (%s).",
+            type(exc).__name__,
+        )
         return None
 
 
