@@ -25,6 +25,8 @@ const API = (
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"
 ).replace(/\/$/, "");
 
+const HEADPHONES_IMAGE = "https://raw.githubusercontent.com/ayush2459/Aftermath-AI/phase-3/ai-investigation-recovery/backend/static/products/aurora-headphones.jpg";
+
 const money = (paise) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -33,10 +35,9 @@ const money = (paise) =>
   }).format((paise || 0) / 100);
 
 const productImage = (product) => {
-  const path =
-    product.product_id === "aurora-headphones"
-      ? "/static/products/aurora-headphones.jpg"
-      : product.image_url || "";
+  if (product.product_id === "aurora-headphones") return HEADPHONES_IMAGE;
+
+  const path = product.image_url || "";
 
   const isAbsolute =
     path.startsWith("http://") || path.startsWith("https://");
@@ -816,7 +817,7 @@ function App() {
 
             <div className="hero-product">
               <img
-                src={`${API}/static/products/aurora-headphones.jpg?v=20261031-1`}
+                src={HEADPHONES_IMAGE}
                 alt="Aurora wireless headphones"
               />
             </div>
