@@ -102,3 +102,57 @@ Keep secrets in `backend/.env`, never in the frontend. If you run the frontend o
 - [database/](database/) — local PostgreSQL schema, demo products, and migrations.
 
 This is a development prototype. It does not yet investigate incidents with AI, execute recovery actions, connect to a live carrier, or run a verified end-to-end restoration. Its purpose is to make the failure and its business context visible while those recovery capabilities are built.
+
+
+## GhostTrail and Discord recovery workflow
+
+The current branch includes an end-to-end **simulated shipment-failure recovery path**:
+
+1. The order API records the failed shipment, incident, event, audit entry, and a durable Discord notification-outbox row in one database transaction.
+2. The notification worker retries pending Discord notifications with bounded exponential backoff.
+3. GhostTrail gathers persisted order, payment, inventory, shipment, event, and audit evidence; creates an advisory diagnosis and recovery proposal; and creates a short-lived Discord handoff.
+4. In the configured Discord recovery channel, operators use `CASE <code>` to inspect the case, `STATUS <code>` to read current persisted state, and `CONFIRM <code>` to explicitly approve and execute the guarded demo action.
+5. The backend rechecks payment, shipment, inventory, approval, expiry, and idempotency preconditions. The bot reports success only after it reads back the expected order, shipment, and incident states.
+
+The customer-facing storefront and shipment pages do not expose operator controls. The Operations Dashboard is a read-only monitoring surface. Recovery decisions and commands remain in Discord.
+
+### Run the background processes
+
+Run the API, notification worker, and Discord Gateway bot as **three separate long-lived processes** using the same backend environment and database:
+
+```bash
+# Terminal 1 — API
+cd backend
+source .venv/bin/activate
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+
+# Terminal 2 — durable Discord notification outbox
+cd backend
+source .venv/bin/activate
+python -m app.notification_worker
+
+# Terminal 3 — Discord command bot (only one Gateway instance per token)
+cd backend
+source .venv/bin/activate
+python -m app.discord_recovery_agent
+```
+
+Configure the backend environment with the existing database and Discord settings: `DISCORD_BOT_TOKEN`, `DISCORD_RECOVERY_AGENT_KEY`, `DISCORD_RECOVERY_CHANNEL_ID` (or `DISCORD_CHANNEL_ID`), `DISCORD_SUPPORT_INVITE_URL`, and `PUBLIC_FRONTEND_URL`. The bot also needs `AFTERMATH_API_BASE_URL` pointing to the reachable API. Never put these secrets in frontend environment variables or commit them.
+
+The worker is not started by the FastAPI web process. In deployment, configure it as a separate background/worker service with restart-on-failure. The Discord bot is a separate long-running process as well. If either process is stopped, the API can still persist incidents, but Discord delivery or command handling will pause until that process is running again.
+
+### Discord command sequence
+
+- `CASE <code>` — inspect the GhostTrail evidence and proposed action; this also records that the case was previewed.
+- `STATUS <code>` — read the current incident, approval, payment, shipment, and recovery-action state without changing it.
+- `CONFIRM <code>` — explicitly approve and execute the eligible simulated recovery. If a request times out, use `STATUS` before deciding whether to retry.
+
+The case code expires after 60 minutes. A completed recovery is idempotent; repeating the confirmation does not create a duplicate action.
+
+### Current scope and honest limitations
+
+- The automated failure currently originates from the seeded shipment-allocation failure created by the demo order flow. This is not yet a universal detector for arbitrary third-party checkout, payment, inventory, or carrier systems.
+- The outbox worker delivers and retries Discord notifications. GhostTrail investigation and plan preparation are initiated by opening its handoff page; this is not yet a durable autonomous investigation worker.
+- The recovery action is a guarded database simulation. No live carrier API is contacted and no physical parcel is created or moved.
+- The Operations Dashboard refreshes by polling. It is not a WebSocket/SSE stream.
+- Discord approval, state checks, idempotency, audit records, and read-back verification are implemented for the seeded demo path. Production provider reconciliation requires real provider adapters and credentials.
