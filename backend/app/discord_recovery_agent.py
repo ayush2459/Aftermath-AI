@@ -46,7 +46,8 @@ def _json_request(url: str, payload: dict, headers: dict, timeout: int = 15) -> 
     )
     try:
         with urlopen(request, timeout=timeout) as response:
-            return json.loads(response.read().decode("utf-8"))
+            raw = response.read().decode("utf-8")
+            return json.loads(raw) if raw.strip() else {}
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"HTTP {exc.code}: {detail[:1000]}") from exc
