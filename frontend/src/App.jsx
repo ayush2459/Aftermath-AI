@@ -164,16 +164,6 @@ function DemoShipmentCard({ shipment, now, startedAt, onRestart }) {
         <p>The demo journey is complete. The recorded test incident remains unchanged.</p>
       </div>
 
-      <div className="discord-help-card">
-        <div className="discord-help-icon"><MessageCircle size={21} /></div>
-        <div className="discord-help-copy">
-          <span className="eyebrow">NEED HELP WITH THIS SHIPMENT?</span>
-          <b>Ask our Aftermath AI bot for shipment information and support.</b>
-        </div>
-        <a className="discord-help-button" href="https://discord.gg/6sCDwusbw" target="_blank" rel="noopener noreferrer">
-          Open Aftermath AI on Discord <ArrowRight size={15} />
-        </a>
-      </div>
       </>}
     </article>
   );
@@ -328,13 +318,13 @@ function App() {
 
   useEffect(() => {
     if (isShipmentPage) refreshShipments();
-  }, [isShipmentPage]);
+  }, [isShipmentPage, shareToken]);
 
   useEffect(() => {
     if (!isShipmentPage) return undefined;
     const timer = window.setInterval(() => setDemoNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [isShipmentPage, shareToken]);
+  }, [isShipmentPage]);
 
   useEffect(() => {
     if (!isShipmentPage) return undefined;
