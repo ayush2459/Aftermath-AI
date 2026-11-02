@@ -194,7 +194,7 @@ function App() {
 
   // Shipment dashboard state
   const [dashboardClearCutoff] = useState(() => {
-    const key = "aftermath_dashboard_orders_cleared_at_v2";
+    const key = "aftermath_dashboard_orders_cleared_at_v3";
     let cutoff = localStorage.getItem(key);
     if (!cutoff) {
       cutoff = new Date().toISOString();
@@ -1382,17 +1382,17 @@ function App() {
                     </div>
 
                     {isDemoFailure && !recoveryRecorded && (
-                      <div className="discord-help-card ghosttrail-entry-card">
-                        <div className="discord-help-icon">
+                      <div className="ghosttrail-help-card">
+                        <div className="ghosttrail-help-icon">
                           <Sparkles size={21} />
                         </div>
-                        <div className="discord-help-copy">
+                        <div className="ghosttrail-help-copy">
                           <span className="eyebrow">SHIPMENT RECOVERY</span>
                           <b>Investigate and recover with GhostTrail AI.</b>
                           <p>Review the evidence, understand the root cause and approve a recovery plan for this exact order.</p>
                         </div>
                         <a
-                          className="discord-help-button ghosttrail-secondary-link"
+                          className="ghosttrail-primary-link"
                           href={`/investigation?order=${encodeURIComponent(shipment.order_id)}`}
                         >
                           Open GhostTrail AI <Sparkles size={15} />
