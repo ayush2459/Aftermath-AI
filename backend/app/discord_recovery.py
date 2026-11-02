@@ -366,7 +366,6 @@ def execute_handoff(
         "incident_status": "resolved",
         "tracking_number": tracking_number,
         "carrier_name": "Aftermath AI Simulated Carrier",
-        "customer_url": customer_url,
     }
     db.execute(text("""
         INSERT INTO recovery_actions (
