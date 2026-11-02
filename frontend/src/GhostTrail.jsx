@@ -55,7 +55,7 @@ export default function GhostTrail() {
 
   const investigate = async () => {
     if (!selected) return;
-    setBusy("investigate"); setError(""); setDiagnosis(null); setPlan(null);
+    setBusy("investigate"); setError(""); setDiagnosis(null); setPlan(null); setHandoff(null);
     try {
       const data = await request(`/api/agent-tools/investigate/${selected}?customer_session=${encodeURIComponent(customerSession)}`);
       setInvestigation(data);
@@ -65,7 +65,7 @@ export default function GhostTrail() {
 
   const diagnose = async () => {
     if (!selected) return;
-    setBusy("diagnose"); setError("");
+    setBusy("diagnose"); setError(""); setHandoff(null);
     try {
       const data = await request(`/api/agent-tools/diagnose/${selected}?customer_session=${encodeURIComponent(customerSession)}`, { method: "POST" });
       setDiagnosis(data);
@@ -75,7 +75,7 @@ export default function GhostTrail() {
 
   const propose = async () => {
     if (!selected) return;
-    setBusy("propose"); setError("");
+    setBusy("propose"); setError(""); setHandoff(null);
     try {
       const data = await request(`/api/recovery/propose/${selected}?customer_session=${encodeURIComponent(customerSession)}`, { method: "POST" });
       setPlan(data);
