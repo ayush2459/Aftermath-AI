@@ -105,7 +105,7 @@ INSERT INTO products(product_id,name,description,price_paise,currency,stock_quan
 ('nova-speaker','Nova Bluetooth Speaker','Portable Bluetooth speaker with rich sound.',229900,'INR',30,'/static/products/nova-speaker.jpg',TRUE),
 ('orbit-keyboard','Orbit Mechanical Keyboard','Mechanical keyboard with RGB backlighting.',599900,'INR',15,'/static/products/orbit-keyboard.jpg',TRUE),
 ('echo-desk-lamp','Echo Desk Lamp','Adjustable LED desk lamp for workspaces.',179900,'INR',18,'/static/products/echo-desk-lamp.jpg',TRUE)
-ON CONFLICT(product_id) DO UPDATE SET name=EXCLUDED.name, description=EXCLUDED.description, price_paise=EXCLUDED.price_paise, currency=EXCLUDED.currency, image_url=EXCLUDED.image_url, is_active=EXCLUDED.is_active;
+ON CONFLICT(product_id) DO UPDATE SET name=EXCLUDED.name, description=EXCLUDED.description, price_paise=EXCLUDED.price_paise, currency=EXCLUDED.currency, stock_quantity=GREATEST(products.stock_quantity, EXCLUDED.stock_quantity), image_url=EXCLUDED.image_url, is_active=EXCLUDED.is_active;
 
 DO $$ DECLARE t TEXT; BEGIN
  FOREACH t IN ARRAY ARRAY['products','orders','payments','inventory_reservations','shipments','incidents','recovery_plans','recovery_actions'] LOOP
