@@ -25,6 +25,7 @@ AGENT_SECRET = os.getenv("DISCORD_RECOVERY_AGENT_KEY", "").strip()
 _EMAIL = re.compile(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b")
 _BEARER = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+")
 _SECRET = re.compile(r"\b(?:sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{20,}|rzp_(?:test|live)_[A-Za-z0-9]+)\b")
+_CARD = re.compile(r"(?<!\d)(?:\d[ -]?){13,19}(?!\d)")
 
 
 class SupportIntake(BaseModel):
@@ -52,6 +53,7 @@ def _redact(message: str) -> str:
     value = _EMAIL.sub("[redacted email]", message)
     value = _BEARER.sub("Bearer [redacted]", value)
     value = _SECRET.sub("[redacted credential]", value)
+    value = _CARD.sub("[redacted payment number]", value)
     return value[:5000]
 
 
@@ -111,6 +113,8 @@ def create_support_case(
         parsed = urlparse(page_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise HTTPException(status_code=422, detail="Page link must be a valid HTTP or HTTPS URL.")
+        # Query strings and fragments may contain session or share tokens.
+        page_url = parsed._replace(query="", fragment="").geturl()
 
     category = classify_issue(message)
     safe_message = _redact(message)
@@ -127,7 +131,7 @@ def create_support_case(
                 'switch_room', :room_id_hash, :source_event_id, :category,
                 'triaged', :customer_message, :page_url
             )
-            ON CONFLICT (source, source_event_id) DO NOTHING
+            ON CONFLICT (source, room_id_hash, source_event_id) DO NOTHING
             RETURNING case_id, category, status, created_at
         """), {
             "room_id_hash": room_id_hash,
@@ -141,8 +145,8 @@ def create_support_case(
             row = db.execute(text("""
                 SELECT case_id, category, status, created_at
                 FROM support_cases
-                WHERE source = 'switch_room' AND source_event_id = :source_event_id
-            """), {"source_event_id": event_id}).mappings().first()
+                WHERE source = 'switch_room' AND room_id_hash = :room_id_hash AND source_event_id = :source_event_id
+            """), {"source_event_id": event_id, "room_id_hash": room_id_hash}).mappings().first()
         if row is None:
             raise RuntimeError("Support case could not be persisted.")
         db.commit()
