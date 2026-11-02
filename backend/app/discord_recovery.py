@@ -81,7 +81,7 @@ def _case_row(db: Session, case_code: str, *, lock: bool = False):
         JOIN incidents i ON i.incident_id = h.incident_id
         JOIN orders o ON o.order_id = h.order_id
         LEFT JOIN payments p ON p.order_id = o.order_id
-        LEFT JOIN shipments s ON s.order_id = o.order_id
+        JOIN shipments s ON s.order_id = o.order_id
         LEFT JOIN LATERAL (
             SELECT content FROM evidence
             WHERE incident_id = h.incident_id
