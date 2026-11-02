@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { sampleJourneyStage, sampleTrackingNumber, shouldOpenSampleJourney, shouldShowSampleResolution } from "./demoTracking";
 import GhostTrail from "./GhostTrail.jsx";
+import OperationsDashboard from "./Operations.jsx";
 import { buildCustomerJourney } from "./shipmentJourney.js";
 import {
   ArrowRight,
@@ -740,6 +741,7 @@ function App() {
     ].some((value) => value && String(value).toLowerCase() === query);
   });
 
+  if (window.location.pathname.replace(/\/+$/, "") === "/operations") return <OperationsDashboard />;
   if (window.location.pathname.replace(/\/+$/, "") === "/investigation") return <GhostTrail />;
 
   return (
