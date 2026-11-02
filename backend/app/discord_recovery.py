@@ -10,7 +10,6 @@ import hashlib
 import hmac
 import json
 import secrets
-from datetime import timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException
