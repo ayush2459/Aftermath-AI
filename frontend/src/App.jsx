@@ -1381,6 +1381,16 @@ function App() {
                         {(isDemoFailure || shipment.carrier_code === "AFTERMATH-DEMO") && (
                           <small>Demo only. This reference cannot track a real parcel.</small>
                         )}
+                        {isDemoFailure && !ghosttrailRecovered && (
+                          <a
+                            className="ghosttrail-tracking-link"
+                            href={`/investigation?order=${encodeURIComponent(shipment.order_id)}`}
+                          >
+                            <Sparkles size={14} />
+                            Investigate with GhostTrail AI
+                            <ArrowRight size={14} />
+                          </a>
+                        )}
                       </span>
                     </div>
                   </article>
