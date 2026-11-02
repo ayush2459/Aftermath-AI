@@ -692,7 +692,7 @@ function App() {
       { title: "Payment verification", description: "Payment verification is handled by the backend.", status: "completed" },
       { title: "Carrier allocation", description: restored ? "Simulated carrier allocation completed by Discord recovery." : failed ? "Carrier allocation request timed out." : "Carrier allocation status depends on shipment data.", status: restored ? "completed" : failed ? "failed" : "pending" },
       { title: "GhostTrail investigation and approval", description: restored ? "GhostTrail diagnosis and approved recovery plan were handed to Discord." : failed ? "Incident requires investigation and an approved recovery plan." : "No active recovery requirement is confirmed.", status: restored ? "completed" : failed ? "attention" : "pending" },
-      { title: "Discord recovery verification", description: restored ? "Backend order, shipment and incident records were re-read and verified." : "Awaiting Discord recovery agent.", status: restored ? "completed" : "pending" }
+      { title: "Recovery verification", description: restored ? "Backend order, shipment and incident records were re-read and verified." : "Awaiting an approved recovery action.", status: restored ? "completed" : "pending" }
     ];
   };
 
@@ -1083,12 +1083,12 @@ function App() {
                       </div>
 
                       <span className={`shipment-status ${recoveryRecorded ? "demo-status" : shipment.shipment_status || "unknown"}`}>
-                        {discordRecovered ? "Restored (simulation)" : ghosttrailRecovered ? "Recovered (demo)" : readable(shipment.shipment_status)}
+                        {recoveryRecorded ? "Recovered (simulation)" : readable(shipment.shipment_status)}
                       </span>
                     </div>
 
                     {discordRecovered && (
-                      <div className="shipment-demo-note discord-restored-note" role="status"><b>Discord recovery completed · Backend state verified</b><p>The order is restored, the simulated shipment record is created, and the incident is resolved. The tracking reference is illustrative; no real carrier or parcel was involved.</p></div>
+                      <div className="shipment-demo-note discord-restored-note" role="status"><b>Recovery completed · Backend state verified</b><p>The order is restored, the simulated shipment record is created, and the incident is resolved. The tracking reference is illustrative; no real carrier or parcel was involved.</p></div>
                     )}
                     <section className="customer-delivery-progress" aria-label="Delivery progress">
                       <div className="customer-delivery-heading">
@@ -1127,7 +1127,7 @@ function App() {
                       </div>
                     </section>
                     {ghosttrailRecovered && !discordRecovered && (
-                      <div className="shipment-demo-note" role="note"><b>Legacy sample recovery recorded · Simulation only</b><p>This older sample journey does not restore a carrier shipment. Use GhostTrail and Discord recovery for the current workflow.</p></div>
+                      <div className="shipment-demo-note" role="note"><b>Legacy sample recovery recorded · Simulation only</b><p>This older sample journey does not restore a carrier shipment. Review the recovery details in GhostTrail AI.</p></div>
                     )}
                     {isDemoFailure && !ghosttrailRecovered && (
                       <div className="shipment-demo-note" role="note">
@@ -1379,44 +1379,21 @@ function App() {
                       )}
                     </div>
 
-                    {isDemoFailure && !ghosttrailRecovered && (
+                    {isDemoFailure && !recoveryRecorded && (
                       <div className="discord-help-card ghosttrail-entry-card">
                         <div className="discord-help-icon">
                           <Sparkles size={21} />
                         </div>
                         <div className="discord-help-copy">
                           <span className="eyebrow">SHIPMENT RECOVERY</span>
-                          <b>Continue with Aftermath AI recovery support.</b>
-                          <p>Visit the private Discord support room for recovery coordination. Start with GhostTrail AI below to investigate this shipment, review the diagnosis and approve a recovery plan before handing it to Discord.</p>
+                          <b>Investigate and recover with GhostTrail AI.</b>
+                          <p>Review the evidence, understand the root cause and approve a recovery plan for this exact order.</p>
                         </div>
-                        <div className="shipment-recovery-links">
-                          <a
-                            className="discord-help-button"
-                            href="https://discord.gg/6sCDwusbw"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            Open Aftermath AI on Discord <ArrowRight size={15} />
-                          </a>
-                          <a
-                            className="discord-help-button ghosttrail-secondary-link"
-                            href={`/investigation?order=${encodeURIComponent(shipment.order_id)}`}
-                          >
-                            Open GhostTrail AI <Sparkles size={15} />
-                          </a>
-                        </div>
-                      </div>
-                    )}
-                    {discordRecovered && (
-                      <div className="discord-help-card">
-                        <div className="discord-help-icon"><Check size={21} /></div>
-                        <div className="discord-help-copy">
-                          <span className="eyebrow">CORRECTED SHIPMENT PAGE</span>
-                          <b>Discord recovery has restored this order in the demo backend.</b>
-                          <p>Order, shipment and incident states were verified after the recovery transaction.</p>
-                        </div>
-                        <a className="discord-help-button" href={shareToken ? window.location.href : `/shipments?order=${encodeURIComponent(shipment.order_id)}&view=recovered`}>
-                          Open restored order <ArrowRight size={15} />
+                        <a
+                          className="discord-help-button ghosttrail-secondary-link"
+                          href={`/investigation?order=${encodeURIComponent(shipment.order_id)}`}
+                        >
+                          Open GhostTrail AI <Sparkles size={15} />
                         </a>
                       </div>
                     )}
@@ -1442,16 +1419,7 @@ function App() {
                         {(isDemoFailure || shipment.carrier_code === "AFTERMATH-DEMO") && (
                           <small>Demo only. This reference cannot track a real parcel.</small>
                         )}
-                        {isDemoFailure && (
-                          <a
-                            className="ghosttrail-tracking-link"
-                            href={`/investigation?order=${encodeURIComponent(shipment.order_id)}`}
-                          >
-                            <Sparkles size={14} />
-                            Investigate with GhostTrail AI
-                            <ArrowRight size={14} />
-                          </a>
-                        )}
+
                       </span>
                     </div>
                   </article>
