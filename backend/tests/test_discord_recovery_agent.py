@@ -1,6 +1,7 @@
 import unittest
 
 from app.discord_recovery_agent import parse_command
+from app.support_router import classify_issue
 
 
 class DiscordRecoveryCommandTests(unittest.TestCase):
@@ -22,6 +23,9 @@ class DiscordRecoveryCommandTests(unittest.TestCase):
     def test_short_or_unstructured_text_is_ignored(self):
         self.assertIsNone(parse_command("CASE short"))
         self.assertIsNone(parse_command("please fix my shipment"))
+
+    def test_non_command_customer_message_is_routed_to_support_specialist(self):
+        self.assertEqual(classify_issue("The dashboard page is broken"), "software_bug")
 
 
 if __name__ == "__main__":
