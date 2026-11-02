@@ -405,6 +405,25 @@
   color: #a3adbf;
 }
 
+.ghosttrail-tracking-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  margin-top: 7px;
+  color: #c5f36b;
+  font-size: .82rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: color .18s ease, gap .18s ease;
+}
+
+.ghosttrail-tracking-link:hover {
+  color: #e2ff9b;
+  gap: 10px;
+  text-decoration: underline;
+}
+
 .tracking-empty {
   margin-top: 25px;
   padding: 30px;
