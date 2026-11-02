@@ -195,8 +195,10 @@ function App() {
   });
 
   // Shipment dashboard state
+  // Start a fresh shipment dashboard history for this release.
+  // Older business records remain in the database; only this dashboard view is cleared.
   const [dashboardClearCutoff] = useState(() => {
-    const key = "aftermath_dashboard_orders_cleared_at_v3";
+    const key = "aftermath_dashboard_orders_cleared_at_v4";
     let cutoff = localStorage.getItem(key);
     if (!cutoff) {
       cutoff = new Date().toISOString();
