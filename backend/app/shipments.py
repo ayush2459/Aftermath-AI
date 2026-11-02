@@ -414,8 +414,10 @@ def list_shipments(
                 LIMIT 1
             ) latest ON TRUE
             WHERE (
-                (:customer_session IS NOT NULL AND o.customer_session = :customer_session)
-                OR (:shared_order_id IS NOT NULL AND o.order_id = :shared_order_id)
+                (CAST(:customer_session AS TEXT) IS NOT NULL
+                    AND o.customer_session = CAST(:customer_session AS TEXT))
+                OR (CAST(:shared_order_id AS UUID) IS NOT NULL
+                    AND o.order_id = CAST(:shared_order_id AS UUID))
             )
             ORDER BY o.created_at DESC
             LIMIT 100
