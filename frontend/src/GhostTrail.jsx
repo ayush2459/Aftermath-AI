@@ -171,6 +171,12 @@ export default function GhostTrail() {
             <code>{handoff.case_code}</code>
             <button className="ghosttrail-secondary" type="button" onClick={copyCaseCode}>Copy case code</button>
           </div>
+          <div className="ghosttrail-diagnosis">
+            <span className="eyebrow"><MessageCircle size={13}/> DISCORD OPERATIONS PROMPT</span>
+            <h3>Continue recovery in Discord</h3>
+            <p>Use the existing Discord workflow for all operator actions. The bot will inspect the saved GhostTrail evidence and recovery proposal, report the current payment, inventory and shipment state, and wait for an explicit operator confirmation. After execution it must report success only when the saved order, shipment and incident states pass verification.</p>
+            <p><b>Start with the case command below.</b> Do not retry or execute a recovery outside the Discord approval flow.</p>
+          </div>
           <p>In the configured Aftermath AI recovery channel, send:</p>
           <pre>CASE {handoff.case_code}</pre>
           <p>The bot will return the GhostTrail diagnosis and approved proposal. To continue the existing simulated recovery, explicitly send:</p>
