@@ -173,9 +173,14 @@ export default function GhostTrail() {
           </div>
           <div className="ghosttrail-diagnosis">
             <span className="eyebrow"><MessageCircle size={13}/> DISCORD OPERATIONS PROMPT</span>
-            <h3>Continue recovery in Discord</h3>
-            <p>Use the existing Discord workflow for all operator actions. The bot will inspect the saved GhostTrail evidence and recovery proposal, report the current payment, inventory and shipment state, and wait for an explicit operator confirmation. After execution it must report success only when the saved order, shipment and incident states pass verification.</p>
-            <p><b>Start with the case command below.</b> Do not retry or execute a recovery outside the Discord approval flow.</p>
+            <h3>Discord is your recovery control room</h3>
+            <p>GhostTrail has prepared the evidence and proposal. Continue entirely in the configured Discord operations channel: review the case, check live persisted status, explicitly confirm an eligible action, and verify the result. Customer pages and this workspace remain read-only.</p>
+            <div className="ghosttrail-command-guide">
+              <div><span>01 · REVIEW</span><code>CASE {handoff.case_code}</code><small>Inspect diagnosis, evidence and proposed action.</small></div>
+              <div><span>02 · CHECK STATUS</span><code>STATUS {handoff.case_code}</code><small>Read incident, approval, payment, shipment and recovery state without changing it.</small></div>
+              <div><span>03 · APPROVE & EXECUTE</span><code>CONFIRM {handoff.case_code}</code><small>Explicit confirmation. The backend rechecks preconditions and uses an idempotency key.</small></div>
+            </div>
+            <p><b>Recovery is never automatic after proposal.</b> If a command times out, use STATUS before retrying. A completed action will not be duplicated.</p>
           </div>
           <p>In the configured Aftermath AI recovery channel, send:</p>
           <pre>CASE {handoff.case_code}</pre>
