@@ -102,6 +102,8 @@ def validate_diagnosis(value: Any, allowed_refs: set[str]) -> dict[str, Any]:
     validated = dict(value)
     validated["confidence"] = _normalize_confidence(value["confidence"])
     return validated
+
+
 def _llm_diagnosis(snapshot: dict[str, Any], findings: list[dict[str, str]]) -> dict[str, Any] | None:
     api_key = os.getenv("AI_API_KEY", "").strip()
     if not api_key:
