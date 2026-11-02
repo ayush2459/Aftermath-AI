@@ -25,7 +25,7 @@ const API = (
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"
 ).replace(/\/$/, "");
 
-const HEADPHONES_IMAGE = "/images/aurora-headphones.png";
+const HEADPHONES_IMAGE = "/images/aurora-headphones.svg?v=20261102-1";
 
 const money = (paise) =>
   new Intl.NumberFormat("en-IN", {
@@ -819,6 +819,13 @@ function App() {
               <img
                 src={HEADPHONES_IMAGE}
                 alt="Aurora wireless headphones"
+                loading="eager"
+                decoding="async"
+                onError={(event) => {
+                  const image = event.currentTarget;
+                  image.onerror = null;
+                  image.src = "/images/aurora-headphones.svg";
+                }}
               />
             </div>
 
@@ -908,6 +915,17 @@ function App() {
                     <img
                       src={productImage(product)}
                       alt={product.name}
+                      loading="eager"
+                      decoding="async"
+                      onError={(event) => {
+                        const image = event.currentTarget;
+                        image.onerror = null;
+                        if (product.product_id === "aurora-headphones") {
+                          image.src = "/images/aurora-headphones.svg";
+                        } else {
+                          image.style.visibility = "hidden";
+                        }
+                      }}
                     />
 
                     <span className="image-label">
