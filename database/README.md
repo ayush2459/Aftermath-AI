@@ -29,3 +29,12 @@ psql -U postgres -d aftermath_ai -f database/phase_3_discord_recovery_migration.
 ```
 
 This adds short-lived GhostTrail-to-Discord case codes and expiring, read-only shipment-page share tokens. It does not modify existing orders or shipment rows.
+
+
+## Phase 4: unified customer support
+
+Back up the existing database, then apply the support-case migration:
+
+    psql -d aftermath_ai -f database/phase_4_unified_support_migration.sql
+
+This adds a support inbox for Discord customer reports. It does not change orders, payments, inventory, shipments, or customer accounts.
