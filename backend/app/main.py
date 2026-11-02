@@ -18,6 +18,7 @@ from .investigation import router as investigation_router
 from .recovery import router as recovery_router
 from .discord_recovery import router as discord_recovery_router
 from .support_router import router as support_router
+from .operations import router as operations_router
 from .notifications import dispatch_discord_alert
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ app.include_router(investigation_router)
 app.include_router(recovery_router)
 app.include_router(discord_recovery_router)
 app.include_router(support_router)
+app.include_router(operations_router)
 
 
 @app.get("/")
