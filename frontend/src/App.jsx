@@ -25,7 +25,7 @@ const API = (
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"
 ).replace(/\/$/, "");
 
-const HEADPHONES_IMAGE = "/images/aurora-headphones.jpg";
+const HEADPHONES_IMAGE = "/images/aurora-headphones.svg";
 
 const money = (paise) =>
   new Intl.NumberFormat("en-IN", {
