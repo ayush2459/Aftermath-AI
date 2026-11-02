@@ -337,7 +337,12 @@ function App() {
         const response = await fetch(`${API}/api/agent-tools/list_shipments?${accessQuery}`);
         if (response.ok && active) {
           const data = await response.json();
-          if (active) setShipments(visibleDashboardOrders(data.shipments || []));
+          const records = visibleDashboardOrders(data.shipments || []);
+          if (recoveredViewOrderId) {
+            const linkedOrder = (data.shipments || []).find((item) => item.order_id === recoveredViewOrderId);
+            if (linkedOrder && !records.some((item) => item.order_id === recoveredViewOrderId)) records.push(linkedOrder);
+          }
+          if (active) setShipments(records);
         }
       } catch {
         // Keep the last known view until the next refresh.
@@ -1149,8 +1154,9 @@ function App() {
 
                       <div>
                         <b>
-                          {shipment.incident_title ||
-                            "No incident recorded"}
+                          {discordRecovered
+                            ? "Original shipment issue · resolved"
+                            : shipment.incident_title || "No incident recorded"}
                         </b>
 
                         <p>
