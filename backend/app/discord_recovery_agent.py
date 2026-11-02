@@ -164,7 +164,7 @@ def websocket_url() -> str:
     scheme = "wss" if parsed.scheme == "https" else "ws"
     query = {
         "connection_id": CONNECTION_ID,
-        "scope": "all",
+        "scope": "single" if SWITCH_ROOM_ID else "all",
         "filter": "all",
         "start_from": "head",
     }
@@ -250,6 +250,11 @@ async def run() -> None:
                             room_id = data.get("room_id")
                             if room_id:
                                 await event_queue.put((sequence, room_id, event_payload))
+                        else:
+                            # Commands and room-join notices are not recovery work.
+                            sequence = (frame.get("data") or {}).get("sequence", frame.get("id"))
+                            if isinstance(sequence, int):
+                                cursor = max(cursor or 0, sequence)
                 finally:
                     consumer.cancel()
                     await asyncio.gather(consumer, return_exceptions=True)
