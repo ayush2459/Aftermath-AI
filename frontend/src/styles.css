@@ -764,6 +764,54 @@
 }
 
 
+/* GhostTrail-only recovery CTA on shipment cards */
+.ghosttrail-help-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 22px;
+  padding: 18px;
+  border: 1px solid rgba(196, 243, 107, .35);
+  border-radius: 9px;
+  background: linear-gradient(115deg, rgba(196, 243, 107, .09), rgba(255,255,255,.025));
+}
+.ghosttrail-help-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #d9f99d;
+  background: rgba(196, 243, 107, .12);
+}
+.ghosttrail-help-copy { flex: 1; min-width: 0; }
+.ghosttrail-help-copy .eyebrow { color: #d9f99d; font-size: 9px; letter-spacing: 1px; }
+.ghosttrail-help-copy b { display: block; margin-top: 6px; color: #f3f5f9; font-size: 12px; }
+.ghosttrail-help-copy p { margin: 6px 0 0; color: #a3adbf; font-size: 11px; line-height: 1.55; }
+.ghosttrail-primary-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 11px 13px;
+  border: 1px solid rgba(196, 243, 107, .45);
+  border-radius: 6px;
+  background: rgba(196, 243, 107, .12);
+  color: #d9f99d;
+  font-size: 10px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: background .2s, transform .2s;
+}
+.ghosttrail-primary-link:hover { background: rgba(196, 243, 107, .2); transform: translateY(-1px); }
+@media (max-width: 620px) {
+  .ghosttrail-help-card { align-items: flex-start; flex-wrap: wrap; padding: 15px; }
+  .ghosttrail-help-copy { flex: 1 1 calc(100% - 60px); }
+  .ghosttrail-primary-link { width: 100%; margin-top: 3px; }
+}
+
 /* Discord recovery assistance CTA on shipment cards */
 .discord-help-card {
   display: flex;
