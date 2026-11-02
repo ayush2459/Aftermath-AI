@@ -262,7 +262,7 @@ def create_order(payload: OrderCreateIn, db: Session = Depends(get_db)):
                 )
                 VALUES (
                     :incident_id, 'discord', 'pending',
-                    CAST(:incident_id AS TEXT) || ':incident.created'
+                    CAST(:incident_id AS TEXT) || chr(58) || 'incident.created'
                 )
                 ON CONFLICT (dedupe_key) DO NOTHING
             """), {"incident_id": incident_id})
