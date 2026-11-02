@@ -73,6 +73,42 @@ const demoSteps = [
   { title: "Delivered", description: "The illustrated delivery is complete." }
 ];
 
+
+const buildCustomerJourney = (shipment, events = []) => {
+  const status = String(shipment.shipment_status || "unknown").toLowerCase();
+  const eventText = events.map((event) => String(event.event_type || "").toLowerCase()).join(" ");
+  const has = (...terms) => terms.some((term) => eventText.includes(term));
+  const failed = status === "failed" || status === "unknown";
+  const delivered = status === "delivered" || has("delivered", "delivery_confirmed");
+  const outForDelivery = delivered || status === "out_for_delivery" || has("out_for_delivery");
+  const inTransit = outForDelivery || status === "in_transit" || has("in_transit", "departed_facility");
+  const pickedUp = inTransit || has("picked_up", "carrier_pickup", "collected");
+  const shipmentCreated = !failed && ["created", "label_created", "picked_up", "in_transit", "out_for_delivery", "delivered"].includes(status);
+  const firstEvent = (...terms) => events.find((event) => terms.some((term) => String(event.event_type || "").toLowerCase().includes(term)));
+  const createdEvent = firstEvent("shipment_created", "discord_simulated_shipment_restored");
+  const pickupEvent = firstEvent("picked_up", "carrier_pickup", "collected");
+  const transitEvent = firstEvent("in_transit", "departed_facility");
+  const outEvent = firstEvent("out_for_delivery");
+  const deliveredEvent = firstEvent("delivered", "delivery_confirmed");
+  const paymentDone = events.some((event) => String(event.event_type || "").toLowerCase().includes("payment")) ||
+    ["captured", "paid", "verified"].includes(String(shipment.payment_status || "").toLowerCase()) ||
+    shipment.order_status !== "payment_pending";
+  const milestones = [
+    { title: "Order placed", detail: "Your order was recorded by the store.", done: true, time: shipment.order_created_at },
+    { title: "Payment confirmed", detail: "Payment confirmation is based on the backend payment record.", done: paymentDone },
+    { title: "Shipment created", detail: failed ? (shipment.last_error || "Shipment creation has not been confirmed.") : "A shipment record is present in the order system.", done: shipmentCreated, failed, time: createdEvent?.occurred_at || (shipmentCreated ? shipment.shipment_updated_at : null) },
+    { title: "Carrier pickup", detail: pickedUp ? "Pickup is recorded in the shipment event history." : "Waiting for a carrier pickup scan.", done: pickedUp, time: pickupEvent?.occurred_at },
+    { title: "In transit", detail: inTransit ? "A transit scan is recorded." : "This step remains pending until a carrier reports movement.", done: inTransit, time: transitEvent?.occurred_at },
+    { title: "Out for delivery", detail: outForDelivery ? "The carrier has reported the parcel out for delivery." : "Waiting for an out-for-delivery scan.", done: outForDelivery, time: outEvent?.occurred_at },
+    { title: "Delivered", detail: delivered ? "Delivery is recorded in the shipment status or event history." : "Delivery confirmation has not been received.", done: delivered, time: deliveredEvent?.occurred_at }
+  ];
+  return milestones.map((step, index) => ({
+    ...step,
+    state: step.failed ? "failed" : step.done ? "complete" : "upcoming",
+    number: index + 1
+  }));
+};
+
 function DemoShipmentCard({ shipment, now, startedAt, onRestart }) {
   const stage = sampleJourneyStage(startedAt, now, demoSteps.length);
   const journeyComplete = stage === demoSteps.length - 1;
@@ -342,6 +378,27 @@ function App() {
             if (linkedOrder && !records.some((item) => item.order_id === recoveredViewOrderId)) records.push(linkedOrder);
           }
           if (active) setShipments(records);
+          // Refresh persisted event history on the same five-second cadence so
+          // new carrier scans and recovery events appear without a manual reload.
+          const timelineResults = await Promise.all(records.map(async (shipment) => {
+            try {
+              const timelineResponse = await fetch(
+                `${API}/api/agent-tools/get_shipment_timeline?order_id=${encodeURIComponent(shipment.order_id)}&${accessQuery}`
+              );
+              if (!timelineResponse.ok) return null;
+              const timeline = await timelineResponse.json();
+              return [shipment.order_id, timeline.events || []];
+            } catch {
+              return null;
+            }
+          }));
+          if (active) {
+            setTimelines((previous) => {
+              const next = { ...previous };
+              timelineResults.filter(Boolean).forEach(([orderId, events]) => { next[orderId] = events; });
+              return next;
+            });
+          }
         }
       } catch {
         // Keep the last known view until the next refresh.
@@ -1041,6 +1098,8 @@ function App() {
                 const ghosttrailRecovered = shipment.ghosttrail_recovery_status === "completed";
                 const discordRecovered = shipment.discord_recovery_status === "completed";
                 const recoveryRecorded = ghosttrailRecovered || discordRecovered;
+                const journeySteps = buildCustomerJourney(shipment, events);
+                const completedMilestones = journeySteps.filter((step) => step.done).length;
 
                 return (
                   <article
@@ -1065,48 +1124,43 @@ function App() {
                     {discordRecovered && (
                       <div className="shipment-demo-note discord-restored-note" role="status"><b>Discord recovery completed · Backend state verified</b><p>The order is restored, the simulated shipment record is created, and the incident is resolved. The tracking reference is illustrative; no real carrier or parcel was involved.</p></div>
                     )}
-                    {discordRecovered && (
-                      <section className="customer-delivery-progress" aria-label="Delivery progress">
-                        <div className="customer-delivery-heading">
-                          <div>
-                            <span className="eyebrow">ORDER JOURNEY</span>
-                            <h4>Delivery progress</h4>
-                            <p>Your order recovery is complete. Carrier delivery milestones will update when a real carrier is connected.</p>
-                          </div>
-                          <span className="customer-progress-count">5 COMPLETED</span>
+                    <section className="customer-delivery-progress" aria-label="Delivery progress">
+                      <div className="customer-delivery-heading">
+                        <div>
+                          <span className="eyebrow">ORDER JOURNEY</span>
+                          <h4>Delivery progress</h4>
+                          <p>Milestones are completed only when supported by recorded order, shipment or carrier events. Future stages remain pending until evidence arrives.</p>
                         </div>
-                        <div className="customer-delivery-list">
-                          {[
-                            { title: "Order placed", detail: "Your order was successfully recorded.", done: true, time: shipment.order_created_at },
-                            { title: "Payment confirmed", detail: "Payment status was verified by the backend.", done: true },
-                            { title: "Shipment issue detected", detail: "Carrier allocation timed out and Aftermath AI recorded the incident.", done: true, time: events.find((event) => event.event_type === "shipment.failed")?.occurred_at },
-                            { title: "GhostTrail investigation & approval", detail: "The issue was investigated and an approved recovery plan was handed to Discord.", done: true },
-                            { title: "Shipment record restored", detail: "The backend verified the restored order, simulated shipment and resolved incident.", done: true, time: events.find((event) => event.event_type === "discord_simulated_shipment_restored")?.occurred_at },
-                            { title: "Carrier pickup", detail: "Awaiting connection to a real carrier.", done: false },
-                            { title: "In transit", detail: "Tracking updates will appear after carrier handoff.", done: false },
-                            { title: "Out for delivery", detail: "This step will update when reported by the carrier.", done: false },
-                            { title: "Delivered", detail: "Delivery confirmation will come from the carrier.", done: false }
-                          ].map((step, index, list) => (
-                            <div className={`customer-delivery-step ${step.done ? "is-complete" : "is-upcoming"}`} key={step.title}>
-                              <div className="customer-delivery-rail">
-                                <span className="customer-delivery-marker">{step.done ? <Check size={13} /> : index - 4}</span>
-                                {index < list.length - 1 && <span className="customer-delivery-line" />}
-                              </div>
-                              <div className="customer-delivery-copy">
-                                <div className="customer-delivery-title">
-                                  <b>{step.title}</b>
-                                  <span>{step.done ? "Completed" : "Upcoming"}</span>
-                                </div>
-                                <p>{step.detail}</p>
-                                {step.time && <time>{formatDate(step.time)}</time>}
-                              </div>
+                        <span className="customer-progress-count">{completedMilestones} / {journeySteps.length} COMPLETED</span>
+                      </div>
+                      <div className="customer-delivery-list">
+                        {journeySteps.map((step, index) => (
+                          <div className={`customer-delivery-step is-${step.state}`} key={step.title}>
+                            <div className="customer-delivery-rail">
+                              <span className="customer-delivery-marker">
+                                {step.done ? <Check size={13} /> : step.failed ? <AlertTriangle size={12} /> : step.number}
+                              </span>
+                              {index < journeySteps.length - 1 && <span className="customer-delivery-line" />}
                             </div>
-                          ))}
-                        </div>
-                        <div className="customer-delivery-disclaimer">The first five steps reflect recorded demo activity. Pickup, transit, out-for-delivery and delivery are intentionally pending: no real parcel has been dispatched.</div>
-                      </section>
-                    )}
-                    {ghosttrailRecovered && !discordRecovered && (
+                            <div className="customer-delivery-copy">
+                              <div className="customer-delivery-title">
+                                <b>{step.title}</b>
+                                <span>{step.failed ? "Issue detected" : step.done ? "Completed" : "Upcoming"}</span>
+                              </div>
+                              <p>{step.detail}</p>
+                              {step.time && <time>{formatDate(step.time)}</time>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="customer-delivery-disclaimer">
+                        {shipment.carrier_code === "AFTERMATH-DEMO"
+                          ? "Simulation only: the restored shipment record is not a carrier booking. Pickup, transit, out-for-delivery and delivery stay pending until a verified carrier integration reports those events."
+                          : "Live status is based on persisted provider events. Pending milestones are not inferred or presented as completed."}
+                        Updates are checked automatically every five seconds.
+                      </div>
+                    </section>
+
                       <div className="shipment-demo-note" role="note"><b>Legacy sample recovery recorded · Simulation only</b><p>This older sample journey does not restore a carrier shipment. Use GhostTrail and Discord recovery for the current workflow.</p></div>
                     )}
                     {isDemoFailure && !ghosttrailRecovered && (
