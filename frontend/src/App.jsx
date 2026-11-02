@@ -25,7 +25,7 @@ const API = (
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"
 ).replace(/\/$/, "");
 
-const HEADPHONES_IMAGE = "https://raw.githubusercontent.com/ayush2459/Aftermath-AI/phase-3/ai-investigation-recovery/backend/static/products/aurora-headphones.jpg";
+const HEADPHONES_IMAGE = "/images/aurora-headphones.jpg";
 
 const money = (paise) =>
   new Intl.NumberFormat("en-IN", {
