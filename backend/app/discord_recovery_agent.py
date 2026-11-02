@@ -1,7 +1,8 @@
-"""Switch WebSocket client for the Aftermath Discord recovery agent.
+"""Switch WebSocket client for unified Aftermath customer support.
 
-The Switch bot owns the Discord Gateway connection. This client only consumes
-addressed Switch room events and posts replies through the Switch agent bridge.
+Switch owns the Discord Gateway connection. This client consumes addressed
+room events, routes GhostTrail recovery commands, and records other support
+reports through the Aftermath support intake API.
 """
 from __future__ import annotations
 
@@ -88,28 +89,18 @@ def handle_case(case_code: str) -> str:
         "/api/discord/recovery/handoffs/inspect",
         {"case_code": case_code},
     )
-    diagnosis = case.get("diagnosis") or {}
     plan = case.get("plan") or {}
     actions = plan.get("actions") or []
     eligible = next(
         (item for item in actions if item.get("action_type") == "reconcile_shipment_with_carrier"),
         None,
     )
-    summary = diagnosis.get("summary") or diagnosis.get("likely_cause") or case.get("incident_title", "Shipment failure")
-    likely_cause = diagnosis.get("likely_cause") or "See GhostTrail's diagnosis."
-    recommended = diagnosis.get("recommended_next_step") or "Review the approved recovery action."
     action_description = (eligible or {}).get("description") or "Restore the simulated shipment record."
     return (
-        f"**GhostTrail recovery case verified**\n"
-        f"Order: {case.get('order_id')}\n"
-        f"Payment: **{case.get('payment_status')}** · Shipment: **{case.get('shipment_status')}**\n"
-        f"Diagnosis: **{summary}**\n"
-        f"Likely cause: {likely_cause}\n"
-        f"GhostTrail recommendation: {recommended}\n"
-        f"Approved action: {action_description}\n\n"
-        f"This is a simulation. No real carrier or parcel will be contacted. "
-        f"To authorize the simulated order restoration, reply: "
-        f"@Aftermath Recovery CONFIRM {case_code}"
+        "I've found your shipment details. Your payment was recorded, but the shipment setup did not finish. "
+        f"GhostTrail's approved next step is: {action_description}\n\n"
+        "This is a demonstration only; no real carrier or parcel is involved. "
+        f"If you'd like to continue, reply CONFIRM {case_code}."
     )
 
 
@@ -119,42 +110,67 @@ def handle_confirmation(case_code: str) -> str:
         {"case_code": case_code, "confirmation": "CONFIRM RECOVERY"},
     )
     verification = result.get("verification") or {}
+    if (
+        verification.get("order_status") != "restored"
+        or verification.get("shipment_status") != "created"
+        or verification.get("incident_status") != "resolved"
+    ):
+        raise RuntimeError("Recovery state verification did not match the expected result.")
+    customer_url = result.get("customer_url")
+    if not customer_url:
+        raise RuntimeError("The corrected shipment page was not returned.")
     return (
-        f"**Aftermath AI recovery completed and verified**\n"
-        f"Order: {result.get('order_id')}\n"
-        f"Order status: **{verification.get('order_status', 'restored')}**\n"
-        f"Shipment status: **{verification.get('shipment_status', 'created')}**\n"
-        f"Incident status: **{verification.get('incident_status', 'resolved')}**\n"
-        f"Simulated tracking reference: {verification.get('tracking_number', 'available on shipment page')}\n\n"
-        f"**Your corrected shipment page:** {result.get('customer_url')}\n\n"
-        f"Simulation only: no real carrier API, parcel movement, delivery or inventory mutation occurred."
+        "Your shipment issue has been resolved in the Aftermath demonstration. "
+        "Your previous order details are still available here:\n"
+        f"{customer_url}\n\n"
+        "Please note: this demonstration does not contact a real carrier or move a parcel."
     )
 
 
-async def process_message(room_id: str, payload: dict) -> bool:
+def handle_support_message(message: str, room_id: str, event_id: str | None = None) -> str:
+    result = aftermath_request(
+        "/api/support/cases",
+        {
+            "message": message[:5000],
+            "room_id": room_id,
+            "source_event_id": str(event_id) if event_id is not None else None,
+        },
+    )
+    return result.get(
+        "reply",
+        "Thanks for reporting this. I've saved your message so we can look into it.",
+    )
+
+
+async def process_message(room_id: str, payload: dict, event_id: str | None = None) -> bool:
     if not payload.get("addressed"):
         return True
-    body = payload.get("body") or ""
+    body = (payload.get("body") or "").strip()
+    if not body:
+        return True
+
     parsed = parse_command(body)
-    if not parsed:
-        if "aftermath recovery" not in body.lower():
-            return True
-        reply = "I can process a GhostTrail-approved simulated recovery. Send CASE <case_code> from your GhostTrail handoff, review the diagnosis, then explicitly confirm with CONFIRM <case_code>."
-    else:
-        kind, code = parsed
-        try:
+    try:
+        if parsed:
+            kind, code = parsed
             if kind == "case":
                 reply = await asyncio.to_thread(handle_case, code)
             else:
                 reply = await asyncio.to_thread(handle_confirmation, code)
-        except Exception as exc:
-            logger.exception("Could not process addressed recovery message")
-            reply = f"I couldn't complete that recovery step: {str(exc)[:500]}. The order has not been reported as restored."
+        else:
+            reply = await asyncio.to_thread(handle_support_message, body, room_id, event_id)
+    except Exception:
+        logger.exception("Could not process addressed Aftermath support message")
+        reply = (
+            "I'm sorry, but I couldn't complete that step safely. "
+            "Your order has not been marked as restored. Please try again shortly or contact the support team."
+        )
+
     try:
         await asyncio.to_thread(switch_post, room_id, reply)
         return True
     except Exception:
-        logger.exception("Could not post the recovery reply to the Switch room")
+        logger.exception("Could not post the customer support reply to the Switch room")
         return False
 
 
@@ -219,7 +235,7 @@ async def run() -> None:
                     while True:
                         sequence, room_id, event_payload = await event_queue.get()
                         try:
-                            delivered = await process_message(room_id, event_payload)
+                            delivered = await process_message(room_id, event_payload, sequence)
                             if not delivered:
                                 await socket.close(code=1011, reason="Reply delivery failed; replay event")
                                 return
@@ -234,7 +250,6 @@ async def run() -> None:
                         frame = json.loads(raw)
                         frame_type = frame.get("type")
                         if frame_type == "ping":
-                            # Keep the heartbeat responsive while the recovery API is working.
                             await socket.send(json.dumps({"type": "pong", "cursor": cursor or 0}))
                             continue
                         if frame_type == "connection_state":
@@ -252,7 +267,6 @@ async def run() -> None:
                             if room_id:
                                 await event_queue.put((sequence, room_id, event_payload))
                         else:
-                            # Commands and room-join notices are not recovery work.
                             sequence = (frame.get("data") or {}).get("sequence", frame.get("id"))
                             if isinstance(sequence, int):
                                 cursor = max(cursor or 0, sequence)
@@ -271,4 +285,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(run())
     except KeyboardInterrupt:
-        logger.info("Discord recovery agent stopped.")
+        logger.info("Unified Aftermath support agent stopped.")
