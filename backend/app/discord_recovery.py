@@ -96,7 +96,7 @@ def _case_row(db: Session, case_code: str, *, lock: bool = False):
 
 @router.post("/handoffs")
 def create_handoff(payload: CreateHandoffIn, db: Session = Depends(get_db)):
-    """Create a short-lived case code after GhostTrail's plan has been approved."""
+    """Create a short-lived case code for a prepared GhostTrail plan."""
     if not DISCORD_RECOVERY_AGENT_KEY:
         raise HTTPException(status_code=503, detail="Discord recovery agent is not configured on the backend.")
     if not DISCORD_SUPPORT_INVITE_URL:
@@ -129,8 +129,8 @@ def create_handoff(payload: CreateHandoffIn, db: Session = Depends(get_db)):
 
     if not row:
         raise HTTPException(status_code=404, detail="Approved recovery case not found.")
-    if row["plan_status"] != "approved" or row["approval_status"] != "approved":
-        raise HTTPException(status_code=409, detail="GhostTrail approval is required before Discord handoff.")
+    if row["plan_status"] not in {"proposed", "approved"} or row["approval_status"] not in {"pending", "approved"}:
+        raise HTTPException(status_code=409, detail="The recovery plan is not ready for Discord review.")
     if row["shipment_status"] != "failed" or not (row["last_error"] or "").startswith("Seeded demo failure:"):
         raise HTTPException(status_code=409, detail="This simulated shipment failure is no longer eligible.")
     if not row["diagnosis"]:
@@ -141,7 +141,7 @@ def create_handoff(payload: CreateHandoffIn, db: Session = Depends(get_db)):
         and action.get("approval_required") is True
         for action in actions
     ):
-        raise HTTPException(status_code=409, detail="The approved plan has no eligible shipment recovery action.")
+        raise HTTPException(status_code=409, detail="The prepared plan has no eligible shipment recovery action.")
 
     case_code = secrets.token_urlsafe(24)
     handoff = db.execute(text("""
@@ -165,7 +165,7 @@ def create_handoff(payload: CreateHandoffIn, db: Session = Depends(get_db)):
         ) VALUES (
             :incident_id, 'customer_session', 'ghosttrail',
             'create_discord_recovery_handoff', 'created',
-            'GhostTrail diagnosis and approved recovery plan were handed to the Discord recovery agent.',
+            'GhostTrail diagnosis and proposed recovery plan were handed to Discord for review and explicit confirmation.',
             CAST(:details AS JSONB)
         )
     """), {
@@ -205,8 +205,8 @@ def inspect_handoff(
         raise HTTPException(status_code=410, detail="Recovery case code has expired.")
     if row["consumed_at"]:
         raise HTTPException(status_code=409, detail="This recovery case has already been completed.")
-    if row["plan_status"] != "approved" or row["approval_status"] != "approved":
-        raise HTTPException(status_code=409, detail="The recovery plan is not approved.")
+    if row["plan_status"] not in {"proposed", "approved"} or row["approval_status"] not in {"pending", "approved"}:
+        raise HTTPException(status_code=409, detail="The recovery plan is not ready for review.")
     if not row["diagnosis"]:
         raise HTTPException(status_code=409, detail="GhostTrail diagnosis is unavailable.")
 
@@ -242,7 +242,7 @@ def execute_handoff(
     x_aftermath_agent_key: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    """Execute an explicitly confirmed, approved simulated shipment restoration."""
+    """Approve and execute only after Discord receives explicit CONFIRM RECOVERY."""
     _require_agent_key(x_aftermath_agent_key)
     if payload.confirmation.strip().upper() != "CONFIRM RECOVERY":
         raise HTTPException(status_code=400, detail="Explicit CONFIRM RECOVERY confirmation is required.")
@@ -254,8 +254,8 @@ def execute_handoff(
         raise HTTPException(status_code=410, detail="Recovery case code has expired.")
     if not row["previewed_at"]:
         raise HTTPException(status_code=409, detail="Inspect the recovery case before confirming it.")
-    if row["plan_status"] != "approved" or row["approval_status"] != "approved":
-        raise HTTPException(status_code=409, detail="The recovery plan is not approved.")
+    if row["plan_status"] not in {"proposed", "approved"} or row["approval_status"] not in {"pending", "approved"}:
+        raise HTTPException(status_code=409, detail="The recovery plan is not ready for confirmation.")
     if row["payment_status"] != "captured":
         raise HTTPException(status_code=409, detail="Payment is not captured; recovery is blocked.")
     if row["shipment_status"] != "failed" or not (row["last_error"] or "").startswith("Seeded demo failure:"):
@@ -281,6 +281,21 @@ def execute_handoff(
     """), {"order_id": row["order_id"]}).scalar_one()
     if reservation_problem:
         raise HTTPException(status_code=409, detail="Inventory reservation reconciliation is required before restoration.")
+
+    # GhostTrail proposes only. The Discord CONFIRM command is the decision point.
+    if row["approval_status"] == "pending":
+        db.execute(text("""
+            UPDATE approvals
+            SET status = 'approved',
+                decided_by = 'discord-confirmation',
+                decision_reason = 'Explicit Discord CONFIRM command received after case preview.',
+                decided_at = NOW()
+            WHERE plan_id = :plan_id AND status = 'pending'
+        """), {"plan_id": row["plan_id"]})
+        db.execute(text("""
+            UPDATE recovery_plans SET status = 'approved'
+            WHERE plan_id = :plan_id AND status = 'proposed'
+        """), {"plan_id": row["plan_id"]})
 
     action_key = f"discord-simulated-shipment-restore:{row['plan_id']}"
     existing = db.execute(text("""
