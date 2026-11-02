@@ -19,6 +19,7 @@ export default function GhostTrail() {
   const [investigation, setInvestigation] = useState(null);
   const [diagnosis, setDiagnosis] = useState(null);
   const [plan, setPlan] = useState(null);
+  const [handoff, setHandoff] = useState(null);
   const [operator, setOperator] = useState("Demo operator");
   const [reason, setReason] = useState("Reviewed the evidence and accepted the proposed next step.");
   const [busy, setBusy] = useState("");
@@ -96,17 +97,31 @@ export default function GhostTrail() {
     finally { setBusy(""); }
   };
 
-  const executeDemoRecovery = async () => {
-    if (!plan?.plan_id || plan.approval?.status !== "approved") return;
-    setBusy("execute"); setError("");
+  const sendToDiscord = async () => {
+    if (!plan?.plan_id || plan.approval?.status !== "approved" || !selected || !diagnosis) return;
+    setBusy("handoff"); setError("");
     try {
-      const data = await request(`/api/recovery/plans/${plan.plan_id}/execute-demo`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customer_session: customerSession })
+      const data = await request("/api/discord/recovery/handoffs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customer_session: customerSession,
+          incident_id: selected,
+          plan_id: plan.plan_id
+        })
       });
-      setPlan((old) => ({ ...old, execution: data }));
+      setHandoff(data);
     } catch (e) { setError(e.message); }
     finally { setBusy(""); }
+  };
+
+  const copyCaseCode = async () => {
+    if (!handoff?.case_code) return;
+    try {
+      await navigator.clipboard.writeText(handoff.case_code);
+    } catch {
+      setError("Clipboard access is unavailable. Select and copy the case code manually.");
+    }
   };
   return (
     <div className="ghosttrail-page">
@@ -123,7 +138,7 @@ export default function GhostTrail() {
           <button className="ghosttrail-secondary" onClick={loadOrders} disabled={!!busy}><RefreshCw size={15}/> Refresh</button>
         </div>
         {orders.length ? (
-          <select value={selected} onChange={(e) => { setSelected(e.target.value); setInvestigation(null); setDiagnosis(null); setPlan(null); }}>
+          <select value={selected} onChange={(e) => { setSelected(e.target.value); setInvestigation(null); setDiagnosis(null); setPlan(null); setHandoff(null); }}>
             {orders.map((order) => <option value={order.incident_id} key={order.incident_id}>{order.incident_title || "Incident"} · {order.order_id}</option>)}
           </select>
         ) : <p className="ghosttrail-muted">No incidents found for this browser session. Create a test order with the demo failure first.</p>}
@@ -172,35 +187,35 @@ export default function GhostTrail() {
             <button className="ghosttrail-secondary" disabled={!!busy || !!plan.decision} onClick={() => decide("rejected")}>Reject proposal</button>
           </div>
         </div>
-        {plan.approval?.status === "approved" && !plan.execution && (
+        {plan.approval?.status === "approved" && (
           <div className="ghosttrail-approval">
-            <b>Approval recorded</b>
-            <p>This records a simulation only; no parcel, carrier, payment, inventory or fulfillment record is changed.</p>
-            <button className="ghosttrail-primary" disabled={!!busy} onClick={executeDemoRecovery}>
-              {busy === "execute" ? "Recording…" : "Execute demo recovery"}
-            </button>
-          </div>
-        )}
-        {plan.execution?.status === "completed" && (
-          <div className="ghosttrail-approval" role="status">
-            <b>Approved demo recovery recorded</b>
-            <p>Simulation only. Real fulfillment remains unchanged.</p>
-            <a href={plan.execution.customer_url}>Open customer shipment page</a>
-            <div className="discord-help-card ghosttrail-discord-next">
-              <div className="discord-help-icon"><MessageCircle size={21} /></div>
-              <div className="discord-help-copy">
-                <span className="eyebrow">CONTINUE CUSTOMER SUPPORT</span>
-                <b>GhostTrail has completed its investigation and recorded the approved demo recovery.</b>
-                <p>Continue in Discord for customer-facing explanations and support. Include order reference: {plan.execution.order_id}</p>
+            <b>GhostTrail approval recorded</b>
+            <p>GhostTrail has prepared the diagnosis and approved recovery plan. Discord will coordinate the simulated restoration after you review the case and explicitly confirm it in the private support room.</p>
+            {!handoff ? (
+              <button className="ghosttrail-primary" disabled={!!busy || !diagnosis} onClick={sendToDiscord}>
+                {busy === "handoff" ? "Preparing secure handoff…" : "Send approved recovery to Discord"}
+              </button>
+            ) : (
+              <div className="ghosttrail-handoff">
+                <div className="ghosttrail-handoff-code">
+                  <span className="eyebrow">ONE-TIME RECOVERY CASE CODE · EXPIRES IN 60 MINUTES</span>
+                  <code>{handoff.case_code}</code>
+                  <button className="ghosttrail-secondary" type="button" onClick={copyCaseCode}>Copy case code</button>
+                </div>
+                <p>Open the private Aftermath AI Discord support room. Mention <b>@Aftermath Recovery</b> and send:</p>
+                <pre>CASE {handoff.case_code}</pre>
+                <p>The agent will show GhostTrail's diagnosis and approved action. After reviewing it, explicitly authorize the simulation by sending:</p>
+                <pre>CONFIRM {handoff.case_code}</pre>
+                <a className="discord-help-button" href={handoff.discord_invite_url} target="_blank" rel="noopener noreferrer">
+                  Open Aftermath AI on Discord <MessageCircle size={15}/>
+                </a>
+                <small>Case expires: {new Date(handoff.expires_at).toLocaleString()} · Simulation only · No real carrier is contacted.</small>
               </div>
-              <a className="discord-help-button" href="https://discord.gg/6sCDwusbw" target="_blank" rel="noopener noreferrer">
-                Continue with Aftermath AI on Discord <MessageCircle size={15} />
-              </a>
-            </div>
+            )}
           </div>
         )}
       </section>}
-      <p className="ghosttrail-disclaimer">Demo environment · Razorpay Test Mode · Carrier failures are simulated · No payment, inventory or shipment actions are executed by GhostTrail.</p>
+      <p className="ghosttrail-disclaimer">Demo environment · Razorpay Test Mode · GhostTrail investigates and approves; Discord coordinates the explicitly confirmed simulated restoration. No real carrier or fulfillment action occurs.</p>
     </div>
   );
 }
