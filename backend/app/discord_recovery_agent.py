@@ -120,7 +120,7 @@ def format_case_reply(case: dict, case_code: str) -> str:
 
     lines = [
         "## GhostTrail investigation",
-        f"I've reviewed the approved recovery case for order `{order_reference}`.",
+        f"I've reviewed the prepared recovery case for order `{order_reference}`.",
         f"**What we found:** {summary or 'The payment is recorded, but shipment creation did not complete.'}",
     ]
     if cause and cause.casefold() != summary.casefold():
@@ -131,10 +131,10 @@ def format_case_reply(case: dict, case_code: str) -> str:
         f"**Current records:** payment `{case.get('payment_status') or 'unknown'}`, "
         f"shipment `{case.get('shipment_status') or 'unknown'}`, "
         f"order `{case.get('order_status') or 'unknown'}`.",
-        f"**Approved next step:** {action_description}",
+        f"**Proposed next step:** {action_description}",
         "",
         "Nothing will be changed until you explicitly confirm. "
-        f"To proceed with this approved demo recovery, reply `CONFIRM {case_code}`.",
+        f"To proceed with this proposed demo recovery, reply `CONFIRM {case_code}`.",
         "_Demo only: no carrier is contacted and no physical parcel is moved._",
     ])
     return "\n".join(lines)
