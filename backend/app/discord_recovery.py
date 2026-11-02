@@ -308,13 +308,36 @@ def execute_handoff(
             WHERE handoff_id = :handoff_id
         """), {"handoff_id": row["handoff_id"]})
         db.commit()
+        verified = db.execute(text("""
+            SELECT o.status AS order_status, s.status AS shipment_status,
+                   i.status AS incident_status, s.tracking_number,
+                   s.carrier_code
+            FROM orders o
+            JOIN shipments s ON s.order_id = o.order_id
+            JOIN incidents i ON i.order_id = o.order_id
+            WHERE o.order_id = :order_id AND i.incident_id = :incident_id
+        """), {"order_id": row["order_id"], "incident_id": row["incident_id"]}).mappings().first()
+        if (
+            not verified
+            or verified["order_status"] != "restored"
+            or verified["shipment_status"] != "created"
+            or verified["incident_status"] != "resolved"
+            or verified["carrier_code"] != "AFTERMATH-DEMO"
+        ):
+            raise HTTPException(status_code=500, detail="Previously completed recovery no longer matches the verified shipment state.")
         return {
             "status": "completed",
             "simulated": True,
             "idempotent_replay": True,
             "order_id": str(row["order_id"]),
             "customer_url": customer_url,
-            "verification": {"order_status": "restored", "shipment_status": "created", "incident_status": "resolved"},
+            "verification": {
+                "order_status": verified["order_status"],
+                "shipment_status": verified["shipment_status"],
+                "incident_status": verified["incident_status"],
+                "tracking_number": verified["tracking_number"],
+                "carrier_code": verified["carrier_code"],
+            },
         }
 
     action = next((
