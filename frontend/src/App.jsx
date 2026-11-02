@@ -188,6 +188,7 @@ function App() {
   const [notice, setNotice] = useState(null);
   const [result, setResult] = useState(null);
 
+  const shareToken = new URLSearchParams(window.location.search).get("share") || "";
   const [customerSession] = useState(() => {
     const key = "aftermath_customer_session";
     let value = localStorage.getItem(key);
@@ -248,8 +249,11 @@ function App() {
     setShipmentError("");
 
     try {
+      const accessQuery = shareToken
+        ? `share_token=${encodeURIComponent(shareToken)}`
+        : `customer_session=${encodeURIComponent(customerSession)}`;
       const response = await fetch(
-        `${API}/api/agent-tools/list_shipments?customer_session=${encodeURIComponent(customerSession)}`
+        `${API}/api/agent-tools/list_shipments?${accessQuery}`
       );
 
       if (!response.ok) {
@@ -279,7 +283,7 @@ function App() {
             const timelineResponse = await fetch(
               `${API}/api/agent-tools/get_shipment_timeline?order_id=${encodeURIComponent(
                 shipment.order_id
-              )}&customer_session=${encodeURIComponent(customerSession)}`
+              )}&${accessQuery}`
             );
 
             if (!timelineResponse.ok) {
@@ -330,14 +334,17 @@ function App() {
     if (!isShipmentPage) return undefined;
     const timer = window.setInterval(() => setDemoNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [isShipmentPage]);
+  }, [isShipmentPage, shareToken]);
 
   useEffect(() => {
     if (!isShipmentPage) return undefined;
     let active = true;
     const timer = window.setInterval(async () => {
       try {
-        const response = await fetch(`${API}/api/agent-tools/list_shipments?customer_session=${encodeURIComponent(customerSession)}`);
+        const accessQuery = shareToken
+          ? `share_token=${encodeURIComponent(shareToken)}`
+          : `customer_session=${encodeURIComponent(customerSession)}`;
+        const response = await fetch(`${API}/api/agent-tools/list_shipments?${accessQuery}`);
         if (response.ok && active) {
           const data = await response.json();
           if (active) setShipments(visibleDashboardOrders(data.shipments || []));
@@ -350,7 +357,7 @@ function App() {
       active = false;
       window.clearInterval(timer);
     };
-  }, [isShipmentPage]);
+  }, [isShipmentPage, shareToken]);
 
   const restartDemo = (orderId) => {
     const started = Date.now();
@@ -662,38 +669,13 @@ function App() {
   // Build a workflow view from the known demo incident.
   // These are explanatory stages, not independently recorded events.
   const getRecoveryStages = (shipment) => {
-    const failed =
-      shipment.shipment_status === "failed" ||
-      shipment.order_status === "recovery_required";
-
+    const restored = shipment.discord_recovery_status === "completed";
+    const failed = shipment.shipment_status === "failed" || shipment.order_status === "recovery_required";
     return [
-      {
-        title: "Payment verification",
-        description:
-          "Payment verification is handled by the backend.",
-        status: "completed"
-      },
-      {
-        title: "Carrier allocation",
-        description: failed
-          ? "Carrier allocation request timed out."
-          : "Carrier allocation status depends on shipment data.",
-        status: failed ? "failed" : "pending"
-      },
-      {
-        title: "Shipment creation",
-        description: failed
-          ? "Shipment was not created after the allocation failure."
-          : "Shipment creation status is not confirmed here.",
-        status: failed ? "blocked" : "pending"
-      },
-      {
-        title: "Recovery investigation",
-        description: failed
-          ? "Incident requires investigation and resolution."
-          : "No active recovery requirement is confirmed.",
-        status: failed ? "attention" : "pending"
-      }
+      { title: "Payment verification", description: "Payment verification is handled by the backend.", status: "completed" },
+      { title: "Carrier allocation", description: restored ? "Simulated carrier allocation completed by Discord recovery." : failed ? "Carrier allocation request timed out." : "Carrier allocation status depends on shipment data.", status: restored ? "completed" : failed ? "failed" : "pending" },
+      { title: "GhostTrail investigation and approval", description: restored ? "GhostTrail diagnosis and approved recovery plan were handed to Discord." : failed ? "Incident requires investigation and an approved recovery plan." : "No active recovery requirement is confirmed.", status: restored ? "completed" : failed ? "attention" : "pending" },
+      { title: "Discord recovery verification", description: restored ? "Backend order, shipment and incident records were re-read and verified." : "Awaiting Discord recovery agent.", status: restored ? "completed" : "pending" }
     ];
   };
 
@@ -999,7 +981,7 @@ function App() {
           </label>
 
           {recoveredViewOrderId && (
-            <div className="sample-recovery-prompt" role="status"><div><b>GhostTrail demo recovery recorded</b><p>Order {recoveredViewOrderId}. Persisted simulation only; not a carrier shipment or proof of delivery.</p></div><button type="button" onClick={refreshShipments} disabled={shipmentsLoading}>Refresh order</button></div>
+            <div className="sample-recovery-prompt" role="status"><div><b>{shareToken ? "Discord recovery verified" : "Recovered order view"}</b><p>Order {recoveredViewOrderId}. The order and simulated shipment records are restored. This is not a real carrier shipment or proof of delivery.</p></div><button type="button" onClick={refreshShipments} disabled={shipmentsLoading}>Refresh order</button></div>
           )}
           {recoveryOrderId && !recoveryComplete && (
             <div className="sample-recovery-prompt" role="note">
@@ -1063,6 +1045,8 @@ function App() {
                   "Seeded demo failure:"
                 );
                 const ghosttrailRecovered = shipment.ghosttrail_recovery_status === "completed";
+                const discordRecovered = shipment.discord_recovery_status === "completed";
+                const recoveryRecorded = ghosttrailRecovered || discordRecovered;
 
                 return (
                   <article
@@ -1079,13 +1063,16 @@ function App() {
                         <h3>{shipment.order_id}</h3>
                       </div>
 
-                      <span className={`shipment-status ${ghosttrailRecovered ? "demo-status" : shipment.shipment_status || "unknown"}`}>
-                        {ghosttrailRecovered ? "Recovered (demo)" : readable(shipment.shipment_status)}
+                      <span className={`shipment-status ${recoveryRecorded ? "demo-status" : shipment.shipment_status || "unknown"}`}>
+                        {discordRecovered ? "Restored (simulation)" : ghosttrailRecovered ? "Recovered (demo)" : readable(shipment.shipment_status)}
                       </span>
                     </div>
 
-                    {ghosttrailRecovered && (
-                      <div className="shipment-demo-note" role="note"><b>GhostTrail recovery recorded · Simulation only</b><p>The approval and recovery record are persisted. Carrier, payment, inventory and real fulfillment remain unchanged.</p></div>
+                    {discordRecovered && (
+                      <div className="shipment-demo-note discord-restored-note" role="status"><b>Discord recovery completed · Backend state verified</b><p>The order is restored, the simulated shipment record is created, and the incident is resolved. The tracking reference is illustrative; no real carrier or parcel was involved.</p></div>
+                    )}
+                    {ghosttrailRecovered && !discordRecovered && (
+                      <div className="shipment-demo-note" role="note"><b>Legacy sample recovery recorded · Simulation only</b><p>This older sample journey does not restore a carrier shipment. Use GhostTrail and Discord recovery for the current workflow.</p></div>
                     )}
                     {isDemoFailure && !ghosttrailRecovered && (
                       <div className="shipment-demo-note" role="note">
@@ -1354,16 +1341,16 @@ function App() {
                         </a>
                       </div>
                     )}
-                    {ghosttrailRecovered && (
+                    {discordRecovered && (
                       <div className="discord-help-card">
-                        <div className="discord-help-icon"><MessageCircle size={21} /></div>
+                        <div className="discord-help-icon"><Check size={21} /></div>
                         <div className="discord-help-copy">
-                          <span className="eyebrow">GHOSTTRAIL WORKFLOW RECORDED</span>
-                          <b>Continue customer-facing support through Aftermath AI on Discord.</b>
-                          <p>Use the order reference when opening the bot. This demo recovery does not represent a real shipment.</p>
+                          <span className="eyebrow">CORRECTED SHIPMENT PAGE</span>
+                          <b>Discord recovery has restored this order in the demo backend.</b>
+                          <p>Order, shipment and incident states were verified after the recovery transaction.</p>
                         </div>
-                        <a className="discord-help-button" href="https://discord.gg/6sCDwusbw" target="_blank" rel="noopener noreferrer">
-                          Continue on Discord <ArrowRight size={15} />
+                        <a className="discord-help-button" href={shareToken ? window.location.href : `/shipments?order=${encodeURIComponent(shipment.order_id)}&view=recovered`}>
+                          Open restored order <ArrowRight size={15} />
                         </a>
                       </div>
                     )}
@@ -1376,16 +1363,18 @@ function App() {
                       </span>
 
                       <span className="tracking-reference">
-                        <b>{shipment.tracking_number
-                          ? "Carrier tracking number"
-                          : isDemoFailure
-                            ? "Demo tracking number"
-                            : "Tracking number"}</b>
+                        <b>{shipment.carrier_code === "AFTERMATH-DEMO"
+                          ? "SIMULATED TRACKING REFERENCE"
+                          : shipment.tracking_number
+                            ? "Carrier tracking number"
+                            : isDemoFailure
+                              ? "Demo tracking number"
+                              : "Tracking number"}</b>
                         <span>{shipment.tracking_number ||
                           sampleTrackingNumber(shipment) ||
                           "Unavailable until a carrier is assigned"}</span>
-                        {isDemoFailure && (
-                          <small>Demo only. This number cannot track a real parcel.</small>
+                        {(isDemoFailure || shipment.carrier_code === "AFTERMATH-DEMO") && (
+                          <small>Demo only. This reference cannot track a real parcel.</small>
                         )}
                       </span>
                     </div>
