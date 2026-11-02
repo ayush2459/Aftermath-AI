@@ -146,6 +146,6 @@ LIMIT 1;
 - Case codes are random, stored only as SHA-256 hashes, expire after 60 minutes and are bound to one approved order/plan.
 - The agent-only endpoints require `X-Aftermath-Agent-Key`; never expose this key to the browser or Discord messages.
 - The agent requires an inspect step and explicit `CONFIRM RECOVERY` confirmation. Execution is idempotent by recovery plan.
-- Shipment share links are opaque, read-only and expire after seven days. Revoke them by setting `revoked_at = NOW()` for the corresponding token hash.
+- Shipment share links are opaque, read-only and expire after seven days. Revoke all active share links for an order with `UPDATE shipment_share_tokens SET revoked_at = NOW() WHERE order_id = '<order-id>' AND revoked_at IS NULL;`.
 - The current storefront still uses browser customer-session identifiers for owner access. Treat this as a demo identity mechanism, not production authentication. Before production, replace it with authenticated customer identities and rate-limit handoff creation/inspection.
 - This integration does not add a second Discord Gateway connection to FastAPI. Switch remains the Discord transport owner.
