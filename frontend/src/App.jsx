@@ -1160,7 +1160,7 @@ function App() {
                         Updates are checked automatically every five seconds.
                       </div>
                     </section>
-
+                    {ghosttrailRecovered && !discordRecovered && (
                       <div className="shipment-demo-note" role="note"><b>Legacy sample recovery recorded · Simulation only</b><p>This older sample journey does not restore a carrier shipment. Use GhostTrail and Discord recovery for the current workflow.</p></div>
                     )}
                     {isDemoFailure && !ghosttrailRecovered && (
