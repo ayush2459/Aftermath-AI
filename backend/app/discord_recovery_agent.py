@@ -1,22 +1,22 @@
-"""Switch WebSocket client for unified Aftermath customer support.
+"""Direct Discord bot client for Aftermath customer support and GhostTrail recovery.
 
-Switch owns the Discord Gateway connection. This client consumes addressed
-room events, routes GhostTrail recovery commands, and records other support
-reports through the Aftermath support intake API.
+This process connects to Discord using the existing bot token. Do not run another
+Gateway client with the same token at the same time.
 """
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import re
-import uuid
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urlparse, urlunparse
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-import websockets
+import discord
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO").upper(),
@@ -26,12 +26,11 @@ logger = logging.getLogger("aftermath.discord_recovery_agent")
 
 API_BASE = os.getenv("AFTERMATH_API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 AGENT_SECRET = os.getenv("DISCORD_RECOVERY_AGENT_KEY", "").strip()
-SWITCH_BASE = os.getenv("SWITCH_BRIDGE_BASE_URL", "").rstrip("/")
-SWITCH_AGENT_ID = os.getenv("SWITCH_AGENT_ID", "").strip()
-SWITCH_AGENT_KEY = os.getenv("SWITCH_AGENT_API_KEY", "").strip()
-SWITCH_ROOM_ID = os.getenv("SWITCH_ROOM_ID", "").strip()
-CONNECTION_ID = os.getenv("SWITCH_CONNECTION_ID", str(uuid.uuid4()))
-MAX_RECONNECT_SECONDS = 30
+BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "").strip()
+RECOVERY_CHANNEL_ID = (
+    os.getenv("DISCORD_RECOVERY_CHANNEL_ID", "").strip()
+    or os.getenv("DISCORD_CHANNEL_ID", "").strip()
+)
 
 CASE_PATTERN = re.compile(r"\bCASE\s+([A-Za-z0-9_-]{24,100})\b", re.IGNORECASE)
 CONFIRM_PATTERN = re.compile(r"\bCONFIRM\s+([A-Za-z0-9_-]{24,100})\b", re.IGNORECASE)
@@ -66,22 +65,35 @@ def aftermath_request(path: str, payload: dict) -> dict:
     )
 
 
-def switch_post(room_id: str, content: str) -> dict:
-    return _json_request(
-        f"{SWITCH_BASE}/agents/{SWITCH_AGENT_ID}/message",
-        {"room_id": room_id, "content": content},
-        {"Authorization": f"Bearer {SWITCH_AGENT_KEY}"},
+def _json_request(url: str, payload: dict, headers: dict, timeout: int = 15) -> dict:
+    import json
+
+    body = json.dumps(payload).encode("utf-8")
+    request = Request(
+        url,
+        data=body,
+        headers={"Content-Type": "application/json", **headers},
+        method="POST",
     )
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            raw = response.read().decode("utf-8")
+            return json.loads(raw) if raw.strip() else {}
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"HTTP {exc.code}: {detail[:1000]}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"Request failed: {exc.reason}") from exc
 
 
-def parse_command(body: str) -> tuple[str, str] | None:
-    confirmation = CONFIRM_PATTERN.search(body or "")
-    if confirmation:
-        return "confirm", confirmation.group(1)
-    case = CASE_PATTERN.search(body or "")
-    if case:
-        return "case", case.group(1)
-    return None
+def aftermath_request(path: str, payload: dict) -> dict:
+    if not AGENT_SECRET:
+        raise RuntimeError("DISCORD_RECOVERY_AGENT_KEY is not configured.")
+    return _json_request(
+        f"{API_BASE}{path}",
+        payload,
+        {"X-Aftermath-Agent-Key": AGENT_SECRET},
+    )
 
 
 def _first_text(data: dict, *keys: str, limit: int = 500) -> str:
@@ -360,3 +372,83 @@ if __name__ == "__main__":
         asyncio.run(run())
     except KeyboardInterrupt:
         logger.info("Unified Aftermath support agent stopped.")
+
+
+async def run() -> None:
+    missing = [
+        name for name, value in (
+            ("DISCORD_BOT_TOKEN", BOT_TOKEN),
+            ("DISCORD_RECOVERY_AGENT_KEY", AGENT_SECRET),
+            ("DISCORD_RECOVERY_CHANNEL_ID (or DISCORD_CHANNEL_ID)", RECOVERY_CHANNEL_ID),
+        ) if not value
+    ]
+    if missing:
+        raise RuntimeError("Missing required environment variables: " + ", ".join(missing))
+
+    try:
+        channel_id = int(RECOVERY_CHANNEL_ID)
+    except ValueError as exc:
+        raise RuntimeError("DISCORD_RECOVERY_CHANNEL_ID must be a numeric Discord channel ID.") from exc
+
+    intents = discord.Intents.default()
+    intents.guilds = True
+    intents.messages = True
+    intents.message_content = True
+    client = discord.Client(intents=intents)
+
+    @client.event
+    async def on_ready():
+        logger.info("Aftermath Recovery connected to Discord as %s", client.user)
+        logger.info("Listening only in configured recovery channel %s", channel_id)
+
+    @client.event
+    async def on_message(message: discord.Message):
+        if message.author.bot or message.guild is None:
+            return
+        if message.channel.id != channel_id:
+            return
+
+        body = (message.content or "").strip()
+        if not body:
+            return
+
+        parsed = parse_command(body)
+        addressed = client.user in message.mentions if client.user else False
+        if not parsed and not addressed:
+            return
+
+        try:
+            if parsed:
+                kind, code = parsed
+                if kind == "case":
+                    reply = await asyncio.to_thread(handle_case, code)
+                else:
+                    reply = await asyncio.to_thread(handle_confirmation, code)
+            else:
+                reply = await asyncio.to_thread(
+                    handle_support_message,
+                    body,
+                    str(message.channel.id),
+                    str(message.id),
+                )
+        except Exception:
+            logger.exception("Could not process addressed Aftermath support message")
+            reply = (
+                "I'm sorry, but I couldn't verify that recovery step. "
+                "The shipment must not be treated as restored. Please try again shortly "
+                "or contact the support team."
+            )
+
+        try:
+            await message.reply(reply, mention_author=False)
+        except discord.HTTPException:
+            logger.exception("Could not send the customer support reply to Discord")
+
+    await client.start(BOT_TOKEN)
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(run())
+    except KeyboardInterrupt:
+        logger.info("Aftermath Discord recovery agent stopped.")
