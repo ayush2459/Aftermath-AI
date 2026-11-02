@@ -1,4 +1,4 @@
-const buildCustomerJourney = (shipment, events = []) => {
+export const buildCustomerJourney = (shipment, events = []) => {
   const status = String(shipment.shipment_status || "unknown").toLowerCase();
   const eventText = events.map((event) => String(event.event_type || "").toLowerCase()).join(" ");
   const has = (...terms) => terms.some((term) => eventText.includes(term));
