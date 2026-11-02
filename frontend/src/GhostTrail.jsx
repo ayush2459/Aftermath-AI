@@ -176,6 +176,7 @@ export default function GhostTrail() {
           <p>The bot will return the GhostTrail diagnosis and approved proposal. To continue the existing simulated recovery, explicitly send:</p>
           <pre>CONFIRM {handoff.case_code}</pre>
           {handoff.discord_invite_url && <a className="discord-help-button" href={handoff.discord_invite_url} target="_blank" rel="noopener noreferrer">Open Aftermath AI Discord <MessageCircle size={15}/></a>}
+          <a className="discord-help-button ghosttrail-secondary-link" href="/operations">Open Operations Dashboard <ArrowLeft size={15}/></a>
           <small>Case expires: {new Date(handoff.expires_at).toLocaleString()} · Existing Discord confirmation and execution flow retained.</small>
         </section>
       )}
