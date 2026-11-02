@@ -1324,16 +1324,26 @@ function App() {
                           <Sparkles size={21} />
                         </div>
                         <div className="discord-help-copy">
-                          <span className="eyebrow">START SHIPMENT RECOVERY</span>
-                          <b>Let GhostTrail AI investigate this shipment failure.</b>
-                          <p>GhostTrail will collect evidence, diagnose the cause, prepare a recovery plan and record the approval workflow for this order.</p>
+                          <span className="eyebrow">SHIPMENT RECOVERY</span>
+                          <b>Continue with Aftermath AI recovery support.</b>
+                          <p>Visit the private Discord support room for recovery coordination. Start with GhostTrail AI below to investigate this shipment, review the diagnosis and approve a recovery plan before handing it to Discord.</p>
                         </div>
-                        <a
-                          className="discord-help-button"
-                          href={`/investigation?order=${encodeURIComponent(shipment.order_id)}`}
-                        >
-                          Open GhostTrail AI <ArrowRight size={15} />
-                        </a>
+                        <div className="shipment-recovery-links">
+                          <a
+                            className="discord-help-button"
+                            href="https://discord.gg/6sCDwusbw"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Open Aftermath AI on Discord <ArrowRight size={15} />
+                          </a>
+                          <a
+                            className="discord-help-button ghosttrail-secondary-link"
+                            href={`/investigation?order=${encodeURIComponent(shipment.order_id)}`}
+                          >
+                            Open GhostTrail AI <Sparkles size={15} />
+                          </a>
+                        </div>
                       </div>
                     )}
                     {discordRecovered && (
