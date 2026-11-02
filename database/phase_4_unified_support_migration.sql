@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS support_cases (
     customer_url TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (source, source_event_id)
+    UNIQUE (source, room_id_hash, source_event_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_support_cases_status_created
