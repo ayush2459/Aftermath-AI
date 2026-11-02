@@ -13,6 +13,10 @@ class DiscordRecoveryCommandTests(unittest.TestCase):
         code = "qwerty_ABC-0123456789abcdefgh"
         self.assertEqual(parse_command(f"@Aftermath Recovery CASE {code}"), ("case", code))
 
+    def test_status_command_extracts_opaque_code_without_becoming_confirmation(self):
+        code = "qwerty_ABC-0123456789abcdefgh"
+        self.assertEqual(parse_command(f"STATUS {code}"), ("status", code))
+
     def test_confirmation_command_extracts_code(self):
         code = "qwerty_ABC-0123456789abcdefgh"
         self.assertEqual(parse_command(f"@Aftermath Recovery CONFIRM {code}"), ("confirm", code))
