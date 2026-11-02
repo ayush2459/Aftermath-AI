@@ -8,7 +8,6 @@ import {
   CircleHelp,
   Headphones,
   LockKeyhole,
-  MessageCircle,
   Minus,
   Plus,
   ShieldCheck,
