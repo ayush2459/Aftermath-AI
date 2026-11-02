@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 from uuid import UUID
@@ -25,6 +26,38 @@ class CompleteSampleRecoveryIn(BaseModel):
 
 class CustomerSessionQuery(BaseModel):
     customer_session: str = Field(min_length=1, max_length=128)
+
+
+def _shared_order_id(db: Session, share_token: str | None):
+    if not share_token:
+        return None
+    token_hash = hashlib.sha256(share_token.encode("utf-8")).hexdigest()
+    return db.execute(text("""
+        SELECT order_id
+        FROM shipment_share_tokens
+        WHERE token_hash = :token_hash
+          AND revoked_at IS NULL
+          AND expires_at > NOW()
+    """), {"token_hash": token_hash}).scalar_one_or_none()
+
+
+def _authorize_shipment_view(
+    db: Session,
+    order_id: UUID,
+    customer_session: str | None,
+    share_token: str | None,
+):
+    if customer_session:
+        owner = db.execute(
+            text("SELECT customer_session FROM orders WHERE order_id = :order_id"),
+            {"order_id": order_id},
+        ).scalar_one_or_none()
+        if owner == customer_session:
+            return
+    shared_order_id = _shared_order_id(db, share_token)
+    if shared_order_id and str(shared_order_id) == str(order_id):
+        return
+    raise HTTPException(status_code=404, detail="Shipment not found for this customer.")
 
 
 def _shipment(db: Session, order_id: UUID):
@@ -105,17 +138,13 @@ def get_shipment_status(
 @router.get("/get_shipment_timeline")
 def get_shipment_timeline(
     order_id: UUID,
-    customer_session: str = Query(..., min_length=1, max_length=128),
+    customer_session: str | None = Query(default=None, min_length=1, max_length=128),
+    share_token: str | None = Query(default=None, min_length=24, max_length=256),
     db: Session = Depends(get_db),
 ):
-    """Return the chronological event history for an order."""
-    shipment = _shipment(db, order_id)
-    owner = db.execute(
-        text("SELECT customer_session FROM orders WHERE order_id = :order_id"),
-        {"order_id": order_id},
-    ).scalar_one_or_none()
-    if owner != customer_session:
-        raise HTTPException(status_code=404, detail="Shipment not found for this customer.")
+    """Return event history to the owner session or a valid read-only share link."""
+    _shipment(db, order_id)
+    _authorize_shipment_view(db, order_id, customer_session, share_token)
 
     rows = db.execute(
         text("""
@@ -301,10 +330,16 @@ def get_shipment_issues(
 
 @router.get("/list_shipments")
 def list_shipments(
-    customer_session: str = Query(..., min_length=1, max_length=128),
+    customer_session: str | None = Query(default=None, min_length=1, max_length=128),
+    share_token: str | None = Query(default=None, min_length=24, max_length=256),
     db: Session = Depends(get_db),
 ):
-    """Return shipment records belonging only to the supplied customer session."""
+    """Return owner shipments or one order authorized by a read-only share link."""
+    shared_order_id = _shared_order_id(db, share_token)
+    if not customer_session and not shared_order_id:
+        raise HTTPException(status_code=422, detail="A customer session or valid shipment share token is required.")
+    if share_token and not shared_order_id:
+        raise HTTPException(status_code=404, detail="Shipment share link is invalid or expired.")
     rows = db.execute(
         text("""
             SELECT
@@ -324,6 +359,7 @@ def list_shipments(
                 s.updated_at AS shipment_updated_at,
                 demo_recovery.status AS demo_recovery_status,
                 ghosttrail_recovery.status AS ghosttrail_recovery_status,
+                discord_recovery.status AS discord_recovery_status,
                 i.incident_id,
                 i.status AS incident_status,
                 i.severity AS incident_severity,
@@ -350,6 +386,12 @@ def list_shipments(
                 ORDER BY ra.created_at DESC LIMIT 1
             ) ghosttrail_recovery ON TRUE
             LEFT JOIN LATERAL (
+                SELECT ra.status FROM recovery_actions ra
+                WHERE ra.incident_id = i.incident_id
+                  AND ra.action_type = 'discord_simulated_shipment_restore'
+                ORDER BY ra.created_at DESC LIMIT 1
+            ) discord_recovery ON TRUE
+            LEFT JOIN LATERAL (
                 SELECT json_agg(
                     json_build_object(
                         'product_id', p.product_id,
@@ -371,11 +413,14 @@ def list_shipments(
                 ORDER BY e.created_at DESC, e.event_id DESC
                 LIMIT 1
             ) latest ON TRUE
-            WHERE o.customer_session = :customer_session
+            WHERE (
+                (:customer_session IS NOT NULL AND o.customer_session = :customer_session)
+                OR (:shared_order_id IS NOT NULL AND o.order_id = :shared_order_id)
+            )
             ORDER BY o.created_at DESC
             LIMIT 100
         """),
-        {"customer_session": customer_session},
+        {"customer_session": customer_session, "shared_order_id": shared_order_id},
     ).mappings().all()
 
     return {
