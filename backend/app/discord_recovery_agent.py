@@ -84,24 +84,112 @@ def parse_command(body: str) -> tuple[str, str] | None:
     return None
 
 
+def _first_text(data: dict, *keys: str, limit: int = 500) -> str:
+    for key in keys:
+        value = data.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()[:limit]
+    return ""
+
+
+def format_case_reply(case: dict, case_code: str) -> str:
+    """Turn the persisted GhostTrail diagnosis into a concise customer-safe review."""
+    diagnosis = case.get("diagnosis") or {}
+    if isinstance(diagnosis, str):
+        diagnosis = {"summary": diagnosis}
+    if not isinstance(diagnosis, dict):
+        diagnosis = {}
+
+    plan = case.get("plan") or {}
+    actions = plan.get("actions") or []
+    eligible = next(
+        (
+            item for item in actions
+            if isinstance(item, dict)
+            and item.get("action_type") == "reconcile_shipment_with_carrier"
+        ),
+        None,
+    )
+    summary = _first_text(diagnosis, "summary", "diagnosis", "root_cause", "explanation")
+    cause = _first_text(diagnosis, "root_cause", "cause")
+    confidence = diagnosis.get("confidence")
+    if isinstance(confidence, (int, float)) and not isinstance(confidence, bool):
+        confidence_text = f"{confidence:.0%}" if 0 <= confidence <= 1 else ""
+    elif isinstance(confidence, str):
+        confidence_text = confidence[:30]
+    else:
+        confidence_text = ""
+
+    action_description = _first_text(
+        eligible or {}, "description", "reason", limit=400
+    ) or "Restore the failed shipment record in the Aftermath demo."
+    order_id = str(case.get("order_id") or "")
+    order_reference = order_id[:8] if order_id else "your order"
+
+    lines = [
+        "## GhostTrail investigation",
+        f"I've reviewed the approved recovery case for order `{order_reference}`.",
+        f"**What we found:** {summary or 'The payment is recorded, but shipment creation did not complete.'}",
+    ]
+    if cause and cause.casefold() != summary.casefold():
+        lines.append(f"**Likely cause:** {cause}")
+    if confidence_text:
+        lines.append(f"**Diagnosis confidence:** {confidence_text}")
+    lines.extend([
+        f"**Current records:** payment `{case.get('payment_status') or 'unknown'}`, "
+        f"shipment `{case.get('shipment_status') or 'unknown'}`, "
+        f"order `{case.get('order_status') or 'unknown'}`.",
+        f"**Approved next step:** {action_description}",
+        "",
+        "Nothing will be changed until you explicitly confirm. "
+        f"To proceed with this approved demo recovery, reply `CONFIRM {case_code}`.",
+        "_Demo only: no carrier is contacted and no physical parcel is moved._",
+    ])
+    return "\n".join(lines)
+
+
 def handle_case(case_code: str) -> str:
     case = aftermath_request(
         "/api/discord/recovery/handoffs/inspect",
         {"case_code": case_code},
     )
-    plan = case.get("plan") or {}
-    actions = plan.get("actions") or []
-    eligible = next(
-        (item for item in actions if item.get("action_type") == "reconcile_shipment_with_carrier"),
-        None,
-    )
-    action_description = (eligible or {}).get("description") or "Restore the simulated shipment record."
-    return (
-        "I've found your shipment details. Your payment was recorded, but the shipment setup did not finish. "
-        f"GhostTrail's approved next step is: {action_description}\n\n"
-        "This is a demonstration only; no real carrier or parcel is involved. "
-        f"If you'd like to continue, reply CONFIRM {case_code}."
-    )
+    return format_case_reply(case, case_code)
+
+
+def format_confirmation_reply(result: dict) -> str:
+    verification = result.get("verification") or {}
+    if (
+        result.get("status") != "completed"
+        or verification.get("order_status") != "restored"
+        or verification.get("shipment_status") != "created"
+        or verification.get("incident_status") != "resolved"
+        or verification.get("carrier_code") != "AFTERMATH-DEMO"
+    ):
+        raise RuntimeError("Recovery state verification did not match the expected result.")
+
+    customer_url = result.get("customer_url")
+    parsed = urlparse(customer_url or "")
+    if parsed.scheme not in {"https", "http"} or not parsed.netloc:
+        raise RuntimeError("The corrected shipment page URL was not valid.")
+    tracking = verification.get("tracking_number")
+    replay_note = " This was an idempotent replay; no duplicate recovery was created." if result.get("idempotent_replay") else ""
+    lines = [
+        "## Shipment recovery verified",
+        "The approved recovery completed and the backend read the saved records back successfully.",
+        "• Order: **restored**",
+        "• Shipment: **created (simulated)**",
+        "• Incident: **resolved**",
+    ]
+    if tracking:
+        lines.append(f"• Demo tracking reference: `{str(tracking)[:80]}`")
+    lines.extend([
+        "",
+        f"[Open your corrected shipment page]({customer_url})",
+        "",
+        "This is a demonstration recovery only. No carrier API was called and no real parcel was created or moved."
+        + replay_note,
+    ])
+    return "\n".join(lines)
 
 
 def handle_confirmation(case_code: str) -> str:
@@ -109,22 +197,7 @@ def handle_confirmation(case_code: str) -> str:
         "/api/discord/recovery/handoffs/execute",
         {"case_code": case_code, "confirmation": "CONFIRM RECOVERY"},
     )
-    verification = result.get("verification") or {}
-    if (
-        verification.get("order_status") != "restored"
-        or verification.get("shipment_status") != "created"
-        or verification.get("incident_status") != "resolved"
-    ):
-        raise RuntimeError("Recovery state verification did not match the expected result.")
-    customer_url = result.get("customer_url")
-    if not customer_url:
-        raise RuntimeError("The corrected shipment page was not returned.")
-    return (
-        "Your shipment issue has been resolved in the Aftermath demonstration. "
-        "Your previous order details are still available here:\n"
-        f"{customer_url}\n\n"
-        "Please note: this demonstration does not contact a real carrier or move a parcel."
-    )
+    return format_confirmation_reply(result)
 
 
 def handle_support_message(message: str, room_id: str, event_id: str | None = None) -> str:
@@ -162,8 +235,9 @@ async def process_message(room_id: str, payload: dict, event_id: str | None = No
     except Exception:
         logger.exception("Could not process addressed Aftermath support message")
         reply = (
-            "I'm sorry, but I couldn't complete that step safely. "
-            "Your order has not been marked as restored. Please try again shortly or contact the support team."
+            "I'm sorry, but I couldn't verify that recovery step. "
+            "The shipment must not be treated as restored. Please try again shortly "
+            "or contact the support team."
         )
 
     try:
