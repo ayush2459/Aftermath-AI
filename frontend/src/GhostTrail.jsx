@@ -16,8 +16,8 @@ const STEPS = [
   ["detect", "Incident detected", "Aftermath AI has identified a failed order."],
   ["investigate", "GhostTrail evidence collection", "Reconciling the order, payment, inventory, shipment and event history."],
   ["diagnose", "AI diagnosis", "Preparing an evidence-based explanation and recommended next step."],
-  ["plan", "Recovery plan prepared", "Creating a guarded recovery proposal for Discord review."],
-  ["discord", "Handed off to Discord", "The Discord bot will handle the remaining review and recovery flow."]
+  ["plan", "Recovery plan prepared", "Preparing a recovery proposal for Discord review and confirmation."],
+  ["discord", "Handed off to Discord", "Discord reviews the proposal and handles explicit confirmation and recovery."]
 ];
 
 export default function GhostTrail() {
@@ -63,19 +63,6 @@ export default function GhostTrail() {
       setStep(3);
       const planResult = await request(`/api/recovery/propose/${incidentId}?${sessionQuery}`, { method: "POST" });
       setPlan(planResult);
-
-      // This records that GhostTrail has prepared the case for Discord.
-      // The Discord CONFIRM command remains the explicit execution gate.
-      await request(`/api/recovery/plans/${planResult.plan_id}/decision`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customer_session: customerSession,
-          decided_by: "GhostTrail background workflow",
-          decision: "approved",
-          reason: "Evidence collection, advisory diagnosis and recovery proposal completed. Discord confirmation is still required before execution."
-        })
-      });
 
       const handoffResult = await request("/api/discord/recovery/handoffs", {
         method: "POST",
@@ -160,7 +147,7 @@ export default function GhostTrail() {
         </div>
         {error && <div className="ghosttrail-error" role="alert">{error}</div>}
         {!busy && error && <button className="ghosttrail-secondary" onClick={retry}><RefreshCw size={15}/> Retry workflow</button>}
-        {busy && <p className="ghosttrail-muted"><Clock3 size={14}/> This process runs automatically. Keep this page open until the Discord handoff is ready.</p>}
+        {busy && <p className="ghosttrail-muted"><Clock3 size={14}/> This process runs automatically. This page displays live progress while GhostTrail prepares the handoff.</p>}
       </section>
 
       {investigation && (
@@ -178,7 +165,7 @@ export default function GhostTrail() {
       {handoff && (
         <section className="ghosttrail-panel ghosttrail-handoff-ready">
           <div className="ghosttrail-panel-head"><div><span className="eyebrow">NEXT STEP · DISCORD BOT</span><h2><MessageCircle size={19}/> GhostTrail handoff complete</h2></div><span className="ghosttrail-tag">Ready</span></div>
-          <p>GhostTrail has completed detection, evidence collection, diagnosis and recovery planning. The existing Discord bot flow now takes over. Review the case there and send the confirmation command only when ready.</p>
+          <p>GhostTrail has completed detection, evidence collection, diagnosis and recovery planning. The existing Discord bot flow now takes over. Review the case there. The plan is not approved or executed until you explicitly confirm.</p>
           <div className="ghosttrail-handoff-code">
             <span className="eyebrow">ONE-TIME CASE CODE · EXPIRES IN 60 MINUTES</span>
             <code>{handoff.case_code}</code>
@@ -193,7 +180,7 @@ export default function GhostTrail() {
         </section>
       )}
 
-      <p className="ghosttrail-disclaimer">The first three stages are automated in this page. Discord handles the remaining confirmation and recovery flow. Current recovery remains a simulation: no carrier API is contacted and no physical parcel is created or moved.</p>
+      <p className="ghosttrail-disclaimer">GhostTrail prepares the evidence-backed proposal here. Discord handles case review, explicit confirmation and the existing recovery flow. Current recovery remains a simulation: no carrier API is contacted and no physical parcel is created or moved.</p>
     </main>
   );
 }
