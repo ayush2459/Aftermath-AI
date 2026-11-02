@@ -19,3 +19,13 @@ psql -U postgres -d aftermath_ai -f .\database\update_product_images.sql
 ```
 
 Only synthetic demo product records belong in this repository. Do not commit database dumps, customer records, passwords, or `.env` files.
+
+## Phase 3: Discord recovery workflow
+
+Back up the existing database, then apply the new handoff/share-token migration:
+
+```bash
+psql -U postgres -d aftermath_ai -f database/phase_3_discord_recovery_migration.sql
+```
+
+This adds short-lived GhostTrail-to-Discord case codes and expiring, read-only shipment-page share tokens. It does not modify existing orders or shipment rows.
