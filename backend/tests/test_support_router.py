@@ -23,6 +23,8 @@ class UnifiedSupportRoutingTests(unittest.TestCase):
         self.assertNotIn("person@example.com", value)
         self.assertNotIn("ghp_123456789012345678901234", value)
         self.assertIn("[redacted", value)
+        card = _redact("My card number is 4111 1111 1111 1111")
+        self.assertNotIn("4111 1111 1111 1111", card)
 
 
 if __name__ == "__main__":
