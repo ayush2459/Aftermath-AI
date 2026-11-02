@@ -1065,6 +1065,47 @@ function App() {
                     {discordRecovered && (
                       <div className="shipment-demo-note discord-restored-note" role="status"><b>Discord recovery completed · Backend state verified</b><p>The order is restored, the simulated shipment record is created, and the incident is resolved. The tracking reference is illustrative; no real carrier or parcel was involved.</p></div>
                     )}
+                    {discordRecovered && (
+                      <section className="customer-delivery-progress" aria-label="Delivery progress">
+                        <div className="customer-delivery-heading">
+                          <div>
+                            <span className="eyebrow">ORDER JOURNEY</span>
+                            <h4>Delivery progress</h4>
+                            <p>Your order recovery is complete. Carrier delivery milestones will update when a real carrier is connected.</p>
+                          </div>
+                          <span className="customer-progress-count">5 COMPLETED</span>
+                        </div>
+                        <div className="customer-delivery-list">
+                          {[
+                            { title: "Order placed", detail: "Your order was successfully recorded.", done: true, time: shipment.order_created_at },
+                            { title: "Payment confirmed", detail: "Payment status was verified by the backend.", done: true },
+                            { title: "Shipment issue detected", detail: "Carrier allocation timed out and Aftermath AI recorded the incident.", done: true, time: events.find((event) => event.event_type === "shipment.failed")?.occurred_at },
+                            { title: "GhostTrail investigation & approval", detail: "The issue was investigated and an approved recovery plan was handed to Discord.", done: true },
+                            { title: "Shipment record restored", detail: "The backend verified the restored order, simulated shipment and resolved incident.", done: true, time: events.find((event) => event.event_type === "discord_simulated_shipment_restored")?.occurred_at },
+                            { title: "Carrier pickup", detail: "Awaiting connection to a real carrier.", done: false },
+                            { title: "In transit", detail: "Tracking updates will appear after carrier handoff.", done: false },
+                            { title: "Out for delivery", detail: "This step will update when reported by the carrier.", done: false },
+                            { title: "Delivered", detail: "Delivery confirmation will come from the carrier.", done: false }
+                          ].map((step, index, list) => (
+                            <div className={`customer-delivery-step ${step.done ? "is-complete" : "is-upcoming"}`} key={step.title}>
+                              <div className="customer-delivery-rail">
+                                <span className="customer-delivery-marker">{step.done ? <Check size={13} /> : index - 4}</span>
+                                {index < list.length - 1 && <span className="customer-delivery-line" />}
+                              </div>
+                              <div className="customer-delivery-copy">
+                                <div className="customer-delivery-title">
+                                  <b>{step.title}</b>
+                                  <span>{step.done ? "Completed" : "Upcoming"}</span>
+                                </div>
+                                <p>{step.detail}</p>
+                                {step.time && <time>{formatDate(step.time)}</time>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="customer-delivery-disclaimer">The first five steps reflect recorded demo activity. Pickup, transit, out-for-delivery and delivery are intentionally pending: no real parcel has been dispatched.</div>
+                      </section>
+                    )}
                     {ghosttrailRecovered && !discordRecovered && (
                       <div className="shipment-demo-note" role="note"><b>Legacy sample recovery recorded · Simulation only</b><p>This older sample journey does not restore a carrier shipment. Use GhostTrail and Discord recovery for the current workflow.</p></div>
                     )}
