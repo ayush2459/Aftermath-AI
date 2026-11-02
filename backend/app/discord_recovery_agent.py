@@ -148,6 +148,32 @@ def handle_case(case_code: str) -> str:
     return format_case_reply(case, case_code)
 
 
+
+def handle_status(case_code: str) -> str:
+    status = aftermath_request(
+        "/api/discord/recovery/handoffs/status",
+        {"case_code": case_code},
+    )
+    recovery = status.get("recovery_status") or "not_started"
+    lines = [
+        "## Recovery status",
+        f"• Incident: **{status.get('incident_status') or 'unknown'}**",
+        f"• Plan: **{status.get('plan_status') or 'unknown'}**",
+        f"• Approval: **{status.get('approval_status') or 'unknown'}**",
+        f"• Payment: **{status.get('payment_status') or 'unknown'}**",
+        f"• Shipment: **{status.get('shipment_status') or 'unknown'}**",
+        f"• Recovery action: **{recovery}**",
+    ]
+    if recovery == "completed":
+        lines.append("The action is already recorded. Repeating CONFIRM will not create a duplicate.")
+    elif recovery in {"not_started", "failed"}:
+        lines.append(f"If the case is still eligible and the prior attempt did not complete, review it with CASE {case_code} before deciding whether to retry.")
+    if status.get("consumed"):
+        lines.append("This handoff has been consumed.")
+    lines.append("_Demo only: no carrier API or physical parcel is involved._")
+    return "\\n".join(lines)
+
+
 def format_confirmation_reply(result: dict) -> str:
     verification = result.get("verification") or {}
     if (
