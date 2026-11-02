@@ -97,6 +97,10 @@ def _case_row(db: Session, case_code: str, *, lock: bool = False):
 @router.post("/handoffs")
 def create_handoff(payload: CreateHandoffIn, db: Session = Depends(get_db)):
     """Create a short-lived case code after GhostTrail's plan has been approved."""
+    if not DISCORD_RECOVERY_AGENT_KEY:
+        raise HTTPException(status_code=503, detail="Discord recovery agent is not configured on the backend.")
+    if not DISCORD_SUPPORT_INVITE_URL:
+        raise HTTPException(status_code=503, detail="Discord support invite is not configured.")
     row = db.execute(text("""
         SELECT rp.plan, rp.status AS plan_status, a.status AS approval_status,
                i.order_id, i.status AS incident_status,
