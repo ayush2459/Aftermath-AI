@@ -236,6 +236,44 @@ def inspect_handoff(
     }
 
 
+
+@router.post("/handoffs/status")
+def handoff_status(
+    payload: CaseCodeIn,
+    x_aftermath_agent_key: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    """Read the persisted recovery state without previewing or changing the case."""
+    _require_agent_key(x_aftermath_agent_key)
+    row = _case_row(db, payload.case_code)
+    if not row:
+        raise HTTPException(status_code=404, detail="Recovery case code is invalid.")
+    action = db.execute(text("""
+        SELECT status, result, created_at
+        FROM recovery_actions
+        WHERE plan_id = :plan_id
+        ORDER BY created_at DESC
+        LIMIT 1
+    """), {"plan_id": row["plan_id"]}).mappings().first()
+    result = (action or {}).get("result") or {}
+    return {
+        "incident_id": str(row["incident_id"]),
+        "order_id": str(row["order_id"]),
+        "incident_status": row["incident_status"],
+        "plan_status": row["plan_status"],
+        "approval_status": row["approval_status"],
+        "order_status": row["order_status"],
+        "payment_status": row["payment_status"],
+        "shipment_status": row["shipment_status"],
+        "recovery_status": (action or {}).get("status") or "not_started",
+        "recovery_result": result,
+        "recovery_created_at": (action or {}).get("created_at"),
+        "expires_at": row["expires_at"],
+        "consumed": bool(row["consumed_at"]),
+        "simulation_only": True,
+    }
+
+
 @router.post("/handoffs/execute")
 def execute_handoff(
     payload: ExecuteHandoffIn,
