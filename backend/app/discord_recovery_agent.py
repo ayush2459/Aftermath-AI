@@ -130,30 +130,31 @@ def handle_confirmation(case_code: str) -> str:
     )
 
 
-async def process_message(room_id: str, payload: dict) -> None:
+async def process_message(room_id: str, payload: dict) -> bool:
     if not payload.get("addressed"):
-        return
+        return True
     body = payload.get("body") or ""
     parsed = parse_command(body)
     if not parsed:
-        if "aftermath recovery" in body.lower():
-            await asyncio.to_thread(
-                switch_post,
-                room_id,
-                "I can process a GhostTrail-approved simulated recovery. Send CASE <case_code> from your GhostTrail handoff, then review the diagnosis and explicitly confirm with CONFIRM <case_code>.",
-            )
-        return
-
-    kind, code = parsed
+        if "aftermath recovery" not in body.lower():
+            return True
+        reply = "I can process a GhostTrail-approved simulated recovery. Send CASE <case_code> from your GhostTrail handoff, review the diagnosis, then explicitly confirm with CONFIRM <case_code>."
+    else:
+        kind, code = parsed
+        try:
+            if kind == "case":
+                reply = await asyncio.to_thread(handle_case, code)
+            else:
+                reply = await asyncio.to_thread(handle_confirmation, code)
+        except Exception as exc:
+            logger.exception("Could not process addressed recovery message")
+            reply = f"I couldn't complete that recovery step: {str(exc)[:500]}. The order has not been reported as restored."
     try:
-        if kind == "case":
-            reply = await asyncio.to_thread(handle_case, code)
-        else:
-            reply = await asyncio.to_thread(handle_confirmation, code)
-    except Exception as exc:
-        logger.exception("Could not process addressed recovery message")
-        reply = f"I couldn't complete that recovery step: {str(exc)[:500]}. The order has not been reported as restored."
-    await asyncio.to_thread(switch_post, room_id, reply)
+        await asyncio.to_thread(switch_post, room_id, reply)
+        return True
+    except Exception:
+        logger.exception("Could not post the recovery reply to the Switch room")
+        return False
 
 
 def websocket_url() -> str:
@@ -210,28 +211,48 @@ async def run() -> None:
                 open_timeout=15,
             ) as socket:
                 delay = 2
-                async for raw in socket:
-                    frame = json.loads(raw)
-                    frame_type = frame.get("type")
-                    if frame_type == "ping":
-                        await socket.send(json.dumps({"type": "pong", "cursor": cursor or 0}))
-                        continue
-                    if frame_type == "connection_state":
-                        generation = frame.get("generation")
-                        cursor = frame.get("cursor", cursor or 0)
-                        logger.info("Switch connection ready; rooms=%s cursor=%s", frame.get("rooms"), cursor)
-                        continue
-                    if frame_type == "refused":
-                        raise RuntimeError(f"Switch refused connection: {frame}")
-                    if frame.get("event") == "message":
-                        sequence = frame.get("id", (frame.get("data") or {}).get("sequence"))
-                        if isinstance(sequence, int):
-                            cursor = max(cursor or 0, sequence)
-                        data = frame.get("data") or {}
-                        event_payload = data.get("payload") or {}
-                        room_id = data.get("room_id")
-                        if room_id:
-                            await process_message(room_id, event_payload)
+                event_queue: asyncio.Queue = asyncio.Queue()
+
+                async def consume_events():
+                    nonlocal cursor
+                    while True:
+                        sequence, room_id, event_payload = await event_queue.get()
+                        try:
+                            delivered = await process_message(room_id, event_payload)
+                            if not delivered:
+                                await socket.close(code=1011, reason="Reply delivery failed; replay event")
+                                return
+                            if isinstance(sequence, int):
+                                cursor = max(cursor or 0, sequence)
+                        finally:
+                            event_queue.task_done()
+
+                consumer = asyncio.create_task(consume_events())
+                try:
+                    async for raw in socket:
+                        frame = json.loads(raw)
+                        frame_type = frame.get("type")
+                        if frame_type == "ping":
+                            # Keep the heartbeat responsive while the recovery API is working.
+                            await socket.send(json.dumps({"type": "pong", "cursor": cursor or 0}))
+                            continue
+                        if frame_type == "connection_state":
+                            generation = frame.get("generation")
+                            cursor = frame.get("cursor", cursor or 0)
+                            logger.info("Switch connection ready; rooms=%s cursor=%s", frame.get("rooms"), cursor)
+                            continue
+                        if frame_type == "refused":
+                            raise RuntimeError(f"Switch refused connection: {frame}")
+                        if frame.get("event") == "message":
+                            data = frame.get("data") or {}
+                            sequence = frame.get("id", data.get("sequence"))
+                            event_payload = data.get("payload") or {}
+                            room_id = data.get("room_id")
+                            if room_id:
+                                await event_queue.put((sequence, room_id, event_payload))
+                finally:
+                    consumer.cancel()
+                    await asyncio.gather(consumer, return_exceptions=True)
         except asyncio.CancelledError:
             raise
         except Exception:
