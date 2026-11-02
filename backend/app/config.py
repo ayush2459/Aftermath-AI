@@ -41,4 +41,4 @@ DISCORD_RECOVERY_AGENT_KEY = os.getenv("DISCORD_RECOVERY_AGENT_KEY", "").strip()
 DISCORD_SUPPORT_INVITE_URL = os.getenv(
     "DISCORD_SUPPORT_INVITE_URL", "https://discord.gg/6sCDwusbw"
 ).strip()
-PUBLIC_FRONTEND_URL = os.getenv("PUBLIC_FRONTEND_URL", "http://localhost:5173").rstrip("/")
+PUBLIC_FRONTEND_URL = os.getenv("PUBLIC_FRONTEND_URL", "http://localhost:5176").rstrip("/")
