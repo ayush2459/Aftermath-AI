@@ -13,7 +13,7 @@ from .notifications import dispatch_discord_alert
 from .ghosttrail_worker import run_once as run_ghosttrail_once
 
 logger = logging.getLogger("aftermath.notification_worker")
-POLL_SECONDS = 30
+POLL_SECONDS = 5
 BATCH_SIZE = 25
 
 
