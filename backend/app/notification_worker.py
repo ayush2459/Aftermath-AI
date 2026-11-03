@@ -20,7 +20,7 @@ BATCH_SIZE = 25
 def run_once():
     # Run durable investigations first; completed jobs enqueue their Discord
     # handoff into the same outbox drained below.
-    ghosttrail_scanned, ghosttrail_completed = run_ghosttrail_once()
+    ghosttrail_scanned, _ghosttrail_completed = run_ghosttrail_once()
     db = SessionLocal()
     try:
         rows = db.execute(text("""
@@ -50,7 +50,7 @@ def run_once():
             notification_key = row["dedupe_key"].split(":", 1)[1]
             if dispatch_discord_alert(db, row["incident_id"], notification_key):
                 delivered += 1
-        return len(rows) + ghosttrail_scanned, delivered + ghosttrail_completed
+        return len(rows) + ghosttrail_scanned, delivered
     finally:
         db.close()
 
