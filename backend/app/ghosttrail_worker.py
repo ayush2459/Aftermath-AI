@@ -32,16 +32,43 @@ def process_job(db, job) -> dict:
     incident_id = UUID(str(job["incident_id"]))
     customer_session = job["customer_session"]
 
-    diagnosis = diagnose_incident(
-        incident_id=incident_id,
-        customer_session=customer_session,
-        db=db,
-    )
-    proposal = propose_recovery(
-        incident_id=incident_id,
-        customer_session=customer_session,
-        db=db,
-    )
+    existing_diagnosis = db.execute(text("""
+        SELECT evidence_id, content
+        FROM evidence
+        WHERE incident_id = :incident_id
+          AND evidence_type = 'ghosttrail_diagnosis'
+        ORDER BY created_at DESC LIMIT 1
+    """), {"incident_id": incident_id}).mappings().first()
+    if existing_diagnosis:
+        diagnosis_content = existing_diagnosis["content"] or {}
+        diagnosis = {
+            "diagnosis_id": str(existing_diagnosis["evidence_id"]),
+            "provider": diagnosis_content.get("provider", "existing"),
+        }
+    else:
+        diagnosis = diagnose_incident(
+            incident_id=incident_id,
+            customer_session=customer_session,
+            db=db,
+        )
+
+    existing_plan = db.execute(text("""
+        SELECT rp.plan_id
+        FROM recovery_plans rp
+        JOIN approvals a ON a.plan_id = rp.plan_id
+        WHERE rp.incident_id = :incident_id
+          AND rp.status = 'proposed'
+          AND a.status = 'pending'
+        ORDER BY rp.created_at DESC LIMIT 1
+    """), {"incident_id": incident_id}).mappings().first()
+    if existing_plan:
+        proposal = {"plan_id": str(existing_plan["plan_id"])}
+    else:
+        proposal = propose_recovery(
+            incident_id=incident_id,
+            customer_session=customer_session,
+            db=db,
+        )
     handoff = create_handoff(
         CreateHandoffIn(
             customer_session=customer_session,
