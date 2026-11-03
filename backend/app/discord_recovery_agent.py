@@ -50,22 +50,6 @@ def parse_command(body: str) -> tuple[str, str] | None:
         return "case", case.group(1)
     return None
 
-def extract_case_code_from_embeds(embeds) -> str | None:
-    """Recognize the GhostTrail-ready outbox message posted by this bot."""
-    for embed in embeds or []:
-        title = str(getattr(embed, "title", "") or "")
-        if "ghosttrail investigation ready" not in title.casefold():
-            continue
-        for field in getattr(embed, "fields", []) or []:
-            name = str(getattr(field, "name", "") or "")
-            value = str(getattr(field, "value", "") or "")
-            if name.casefold() == "discord next step":
-                match = CASE_PATTERN.search(value)
-                if match:
-                    return match.group(1)
-    return None
-
-
 def _json_request(url: str, payload: dict, headers: dict, timeout: int = 15) -> dict:
     body = json.dumps(payload).encode("utf-8")
     request = Request(
@@ -282,30 +266,6 @@ async def run() -> None:
     @client.event
     async def on_message(message: discord.Message):
         if message.channel.id != channel_id or message.guild is None:
-            return
-
-        # The outbox worker posts the GhostTrail-ready embed with this same bot
-        # token. Turn that notification into an automatic case preview + fresh
-        # status snapshot, so operators only need to make the explicit decision.
-        if client.user and message.author.id == client.user.id:
-            case_code = extract_case_code_from_embeds(message.embeds)
-            if not case_code:
-                return
-            try:
-                preview = await asyncio.to_thread(handle_case, case_code)
-                status = await asyncio.to_thread(handle_status, case_code)
-                await message.reply(
-                    f"{preview}\\n\\n{status}",
-                    mention_author=False,
-                )
-            except Exception:
-                logger.exception("Could not automatically preview GhostTrail handoff")
-                await message.reply(
-                    "GhostTrail created a case, but I couldn't load its preview/status. "
-                    f"Please retry with `CASE {case_code}` and `STATUS {case_code}`. "
-                    "No recovery has been approved or executed.",
-                    mention_author=False,
-                )
             return
 
         if message.author.bot:
