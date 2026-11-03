@@ -31,7 +31,7 @@ RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
 
 # Discord secrets stay server-side. Prefer bot API; webhook remains supported as fallback.
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "").strip()
-DISCORD_CHANNEL_ID = os.getenv("DISCORD_CHANNEL_ID", "").strip()
+DISCORD_CHANNEL_ID = (os.getenv("DISCORD_RECOVERY_CHANNEL_ID", "").strip() or os.getenv("DISCORD_CHANNEL_ID", "").strip())
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "").strip()
 DISCORD_ALERT_TIMEOUT = float(os.getenv("DISCORD_ALERT_TIMEOUT", "8"))
 
