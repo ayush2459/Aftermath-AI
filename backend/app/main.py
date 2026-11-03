@@ -273,6 +273,19 @@ def create_order(payload: OrderCreateIn, db: Session = Depends(get_db)):
                 ON CONFLICT (dedupe_key) DO NOTHING
             """), {"incident_id": incident_id})
 
+            # Durable GhostTrail job: investigation starts after the incident
+            # transaction commits, without requiring a browser to be opened.
+            db.execute(text("""
+                INSERT INTO ghosttrail_investigation_jobs (
+                    incident_id, customer_session, status
+                )
+                VALUES (:incident_id, :customer_session, 'pending')
+                ON CONFLICT (incident_id) DO NOTHING
+            """), {
+                "incident_id": incident_id,
+                "customer_session": payload.customer_session,
+            })
+
             db.execute(text("""
                 INSERT INTO audit_log (
                     incident_id, actor_type, actor_id,
