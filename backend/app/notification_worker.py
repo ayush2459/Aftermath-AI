@@ -65,7 +65,7 @@ def main():
         try:
             scanned, delivered = run_once()
             if scanned:
-                logger.info("Scanned %s notifications; delivered %s", scanned, delivered)
+                logger.info("Processed %s background items; delivered %s Discord notifications", scanned, delivered)
         except Exception:
             logger.exception("Notification worker iteration failed")
         time.sleep(POLL_SECONDS)
