@@ -122,7 +122,7 @@ flowchart LR
     subgraph Services["Application layer"]
       API["FastAPI"]
       Investigate["Investigation + recovery services"]
-      Notify["Notification outbox worker"]
+      Notify["GhostTrail + Discord outbox worker"]
       Bot["Discord Gateway bot"]
     end
 
@@ -325,7 +325,7 @@ Aftermath explores a different operating model:
 This repository demonstrates a working, deliberately constrained recovery path. It is a prototype, not a production integration with arbitrary commerce providers.
 
 - The failure is currently a seeded shipment-allocation timeout in the demo order flow; it is not a universal detector for arbitrary external systems.
-- GhostTrail investigation and plan preparation are initiated by opening the investigation handoff page; they are not yet a durable autonomous background investigation worker.
+- GhostTrail investigation and plan preparation are triggered automatically after incident creation through a durable background job. No browser page needs to be opened to start the investigation.
 - The recovery action is a guarded database simulation. No live carrier API is contacted and no physical parcel is created, booked, or moved.
 - The Operations Dashboard refreshes by polling; it does not use WebSockets or server-sent events.
 - Discord approval, precondition checks, idempotency, audit records, and read-back verification apply to the seeded demo scenario. Production use would require real provider adapters, reconciliation logic, deployment hardening, and credentials.
@@ -337,7 +337,7 @@ These boundaries are intentional and are part of the demo's engineering story: t
 
 The architecture creates a foundation for extending Aftermath beyond the seeded scenario:
 
-- Durable background investigation jobs.
+- Broader automatic failure detection across external commerce providers.
 - Real provider adapters and webhook/CDC-based event ingestion.
 - Broader failure detection across payment, inventory, fulfilment, and delivery.
 - Provider reconciliation and safe compensation workflows.
