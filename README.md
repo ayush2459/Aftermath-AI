@@ -93,11 +93,11 @@ flowchart TD
 - Separate from customer-facing shopping and shipment pages.
 
 ### 🤖 Discord recovery control room
-The Discord workflow is automated up to the decision point. When GhostTrail's ready notification is posted, the Gateway bot recognizes its own notification, automatically loads the case preview, and posts a fresh status snapshot in the thread. Operators do not need to type `CASE` or `STATUS` for the normal path.
+The Discord notification itself now contains the GhostTrail diagnosis, proposed action, persisted incident/plan/approval/payment/shipment state, eligibility check, expiry, and the one required operator decision. This review is assembled by the outbox worker from saved database records before the message is posted; it does not depend on the Gateway bot receiving its own message. Operators only need to send `CONFIRM <code>` after reviewing the post.
 
 | Command | Purpose |
 |---|---|
-| Automatic | Inspect the handoff and post current incident, approval, payment, shipment, and recovery-action state. |
+| Automatic | Post diagnosis, proposed action, current persisted status, and eligibility in the GhostTrail notification. |
 | `CONFIRM <code>` | The only required operator command: explicitly approve and execute an eligible simulated recovery. |
 | `CASE <code>` / `STATUS <code>` | Manual fallback if the automatic preview or status reply cannot be loaded. |
 
