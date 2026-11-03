@@ -93,13 +93,13 @@ flowchart TD
 - Separate from customer-facing shopping and shipment pages.
 
 ### 🤖 Discord recovery control room
-Operators use a concise command sequence in the configured recovery channel:
+The Discord workflow is automated up to the decision point. When GhostTrail's ready notification is posted, the Gateway bot recognizes its own notification, automatically loads the case preview, and posts a fresh status snapshot in the thread. Operators do not need to type `CASE` or `STATUS` for the normal path.
 
 | Command | Purpose |
 |---|---|
-| `CASE <code>` | Inspect the handoff, evidence, and proposed action. |
-| `STATUS <code>` | Read current incident, approval, payment, shipment, and recovery-action state. |
-| `CONFIRM <code>` | Explicitly approve and execute an eligible simulated recovery. |
+| Automatic | Inspect the handoff and post current incident, approval, payment, shipment, and recovery-action state. |
+| `CONFIRM <code>` | The only required operator command: explicitly approve and execute an eligible simulated recovery. |
+| `CASE <code>` / `STATUS <code>` | Manual fallback if the automatic preview or status reply cannot be loaded. |
 
 **Safety built into the demo path**
 - Handoff codes expire after 60 minutes.
@@ -299,11 +299,10 @@ For a clean presentation, use this order:
 3. Show the order and its deliberately seeded shipment-allocation failure.
 4. Open Shipment Monitoring to show the persisted order and event context.
 5. Open GhostTrail and walk through its investigation, diagnosis, and proposed recovery.
-6. In Discord, run `CASE <code>` to inspect the handoff.
-7. Run `STATUS <code>` to establish the current persisted state.
-8. Run `CONFIRM <code>` to approve and execute the guarded demo action.
-9. Run `STATUS <code>` again and show the verified backend state.
-10. Return to the customer shipment view and explain what the customer can now see.
+6. In Discord, wait for the GhostTrail-ready notification. The bot automatically replies with the case preview and current status.
+7. Review the proposed action and, only if appropriate, run `CONFIRM <code>` to approve and execute the guarded demo action.
+8. The bot reports the verified result and customer shipment link. Use `STATUS <code>` if you want to re-check persisted state.
+9. Return to the customer shipment view and explain what the customer can now see.
 
 **Presentation tip:** Explain the failure before showing the solution. The key insight is not that a bot can send a command; it is that Aftermath checks business state and guards the action before claiming recovery.
 
