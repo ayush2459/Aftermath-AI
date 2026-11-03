@@ -161,6 +161,12 @@ def dispatch_discord_alert(db, incident_id, notification_key="incident.created")
             or details["summary"]
             or "No failure details available"
         )
+        delivery = db.execute(text("""
+            SELECT payload FROM notification_deliveries
+            WHERE dedupe_key = :dedupe_key
+        """), {"dedupe_key": dedupe_key}).mappings().first()
+        delivery_payload = (delivery or {}).get("payload") or {}
+
         embed = {
             "title": f"🚨 Aftermath AI: {details['title']}",
             "description": (details["summary"] or reason or "Incident requires attention")[:4096],
@@ -178,6 +184,19 @@ def dispatch_discord_alert(db, incident_id, notification_key="incident.created")
             "footer": {"text": "Aftermath AI • Incident monitoring"},
         }
 
+        if notification_key == "ghosttrail.ready":
+            case_code = str(delivery_payload.get("case_code") or "")
+            if not case_code:
+                raise ValueError("GhostTrail handoff notification is missing its case code.")
+            embed["title"] = f"🧭 GhostTrail investigation ready: {details['title']}"
+            embed["color"] = 5793266
+            embed["fields"].extend([
+                {"name": "Investigation", "value": "Evidence collected; advisory diagnosis and recovery proposal saved.", "inline": False},
+                {"name": "Discord next step", "value": f"Run `CASE {case_code}` in this channel to inspect the case.", "inline": False},
+                {"name": "Safety", "value": "No recovery has been approved or executed. Use STATUS to re-check state; CONFIRM is still required.", "inline": False},
+            ])
+            embed["footer"] = {"text": "Aftermath AI • GhostTrail background investigation • Simulated recovery only"}
+
         _send_discord({"embeds": [embed]})
 
         db.execute(text("""
@@ -185,6 +204,7 @@ def dispatch_discord_alert(db, incident_id, notification_key="incident.created")
             SET status = 'sent',
                 sent_at = NOW(),
                 last_error = NULL,
+                payload = '{}'::jsonb,
                 updated_at = NOW()
             WHERE dedupe_key = :dedupe_key
         """), {"incident_id": incident_id, "dedupe_key": dedupe_key})
