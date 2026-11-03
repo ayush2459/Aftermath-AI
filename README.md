@@ -264,6 +264,12 @@ source .venv/bin/activate
 python -m app.notification_worker
 ```
 
+For an existing database, apply the new migration once from the repository root:
+
+```bash
+psql -d aftermath_ai -f database/phase_5_ghosttrail_jobs_migration.sql
+```
+
 **Discord Gateway bot**
 ```bash
 cd backend
