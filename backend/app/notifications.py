@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import urllib.request
@@ -161,6 +162,12 @@ def dispatch_discord_alert(db, incident_id, notification_key="incident.created")
             or details["summary"]
             or "No failure details available"
         )
+        delivery = db.execute(text("""
+            SELECT payload FROM notification_deliveries
+            WHERE dedupe_key = :dedupe_key
+        """), {"dedupe_key": dedupe_key}).mappings().first()
+        delivery_payload = (delivery or {}).get("payload") or {}
+
         embed = {
             "title": f"🚨 Aftermath AI: {details['title']}",
             "description": (details["summary"] or reason or "Incident requires attention")[:4096],
@@ -178,6 +185,97 @@ def dispatch_discord_alert(db, incident_id, notification_key="incident.created")
             "footer": {"text": "Aftermath AI • Incident monitoring"},
         }
 
+        if notification_key == "ghosttrail.ready":
+            case_code = str(delivery_payload.get("case_code") or "")
+            if not case_code:
+                raise ValueError("GhostTrail handoff notification is missing its case code.")
+
+            # Build the review and live status into the initial channel post.
+            # This avoids relying on a Gateway bot receiving its own REST message.
+            code_hash = hashlib.sha256(case_code.encode("utf-8")).hexdigest()
+            case = db.execute(text("""
+                SELECT
+                    h.expires_at, h.consumed_at,
+                    rp.status AS plan_status, rp.plan,
+                    a.status AS approval_status,
+                    i.status AS incident_status, i.title AS incident_title,
+                    o.status AS order_status,
+                    p.status AS payment_status,
+                    s.status AS shipment_status, s.last_error,
+                    diagnosis.content AS diagnosis
+                FROM discord_recovery_handoffs h
+                JOIN recovery_plans rp ON rp.plan_id = h.plan_id
+                JOIN approvals a ON a.plan_id = rp.plan_id
+                JOIN incidents i ON i.incident_id = h.incident_id
+                JOIN orders o ON o.order_id = h.order_id
+                LEFT JOIN payments p ON p.order_id = o.order_id
+                JOIN shipments s ON s.order_id = o.order_id
+                LEFT JOIN LATERAL (
+                    SELECT content FROM evidence
+                    WHERE incident_id = h.incident_id
+                      AND evidence_type = 'ghosttrail_diagnosis'
+                    ORDER BY created_at DESC LIMIT 1
+                ) diagnosis ON TRUE
+                WHERE h.code_hash = :code_hash
+                ORDER BY a.created_at DESC
+                LIMIT 1
+            """), {"code_hash": code_hash}).mappings().first()
+            if not case:
+                raise ValueError("GhostTrail handoff was queued but its persisted case could not be loaded.")
+
+            diagnosis = case["diagnosis"] or {}
+            if isinstance(diagnosis, str):
+                diagnosis = json.loads(diagnosis)
+            if not isinstance(diagnosis, dict):
+                diagnosis = {"summary": str(diagnosis)}
+            diagnosis_text = next((
+                str(diagnosis.get(key)).strip()
+                for key in ("summary", "diagnosis", "root_cause", "explanation")
+                if diagnosis.get(key)
+            ), "The payment is recorded, but shipment creation did not complete.")
+            plan = case["plan"] or {}
+            actions = plan.get("actions") or []
+            proposed = next((
+                item for item in actions
+                if isinstance(item, dict)
+                and item.get("action_type") == "reconcile_shipment_with_carrier"
+            ), None)
+            action_text = (
+                str(proposed.get("description") or proposed.get("reason") or "").strip()
+                if proposed else ""
+            ) or "Restore the failed shipment record in the Aftermath demo."
+            eligible = bool(
+                proposed
+                and proposed.get("approval_required") is True
+                and case["payment_status"] == "captured"
+                and case["shipment_status"] == "failed"
+                and str(case["last_error"] or "").startswith("Seeded demo failure:")
+                and case["plan_status"] in {"proposed", "approved"}
+                and case["approval_status"] in {"pending", "approved"}
+                and not case["consumed_at"]
+            )
+
+            embed["title"] = f"🧭 GhostTrail case ready: {case['incident_title']}"
+            embed["description"] = (
+                "**Automatic case review**\\n"
+                f"**Diagnosis:** {diagnosis_text[:900]}\\n"
+                f"**Proposed action:** {action_text[:700]}\\n\\n"
+                "**Live persisted status**"
+            )
+            embed["color"] = 5793266
+            embed["fields"] = [
+                {"name": "Incident", "value": str(case["incident_status"]), "inline": True},
+                {"name": "Plan", "value": str(case["plan_status"]), "inline": True},
+                {"name": "Approval", "value": str(case["approval_status"]), "inline": True},
+                {"name": "Payment", "value": str(case["payment_status"] or "unknown"), "inline": True},
+                {"name": "Shipment", "value": str(case["shipment_status"] or "unknown"), "inline": True},
+                {"name": "Recovery eligibility", "value": "Eligible for explicit confirmation" if eligible else "Not currently eligible — review persisted state", "inline": False},
+                {"name": "Operator action", "value": f"Send `CONFIRM {case_code}` only after reviewing this proposal." if eligible else f"Do not confirm. Check the case with `STATUS {case_code}`.", "inline": False},
+                {"name": "Case expiry", "value": str(case["expires_at"]), "inline": False},
+                {"name": "Safety", "value": "No recovery has been approved or executed. Confirmation is mandatory. Demo only; no carrier API or physical parcel is involved.", "inline": False},
+            ]
+            embed["footer"] = {"text": "Aftermath AI • Automated GhostTrail review and status • Simulated recovery only"}
+
         _send_discord({"embeds": [embed]})
 
         db.execute(text("""
@@ -185,6 +283,7 @@ def dispatch_discord_alert(db, incident_id, notification_key="incident.created")
             SET status = 'sent',
                 sent_at = NOW(),
                 last_error = NULL,
+                payload = '{}'::jsonb,
                 updated_at = NOW()
             WHERE dedupe_key = :dedupe_key
         """), {"incident_id": incident_id, "dedupe_key": dedupe_key})

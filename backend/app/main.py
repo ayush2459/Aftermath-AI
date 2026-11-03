@@ -14,6 +14,11 @@ from .db import get_db
 from .schemas import OrderCreateIn, OrderCreatedOut, ProductOut
 from .payments import router as razorpay_router
 from .shipments import router as shipment_tools_router
+from .investigation import router as investigation_router
+from .recovery import router as recovery_router
+from .discord_recovery import router as discord_recovery_router
+from .support_router import router as support_router
+from .operations import router as operations_router
 from .notifications import dispatch_discord_alert
 
 logger = logging.getLogger(__name__)
@@ -24,7 +29,7 @@ STATIC_DIR = BASE_DIR / "static"
 app = FastAPI(
     title="Aftermath AI API",
     description="Hackathon demo API for order failure investigation and recovery.",
-    version="0.3.0",
+    version="0.4.0",
 )
 
 app.add_middleware(
@@ -40,6 +45,11 @@ if STATIC_DIR.exists():
 
 app.include_router(razorpay_router)
 app.include_router(shipment_tools_router)
+app.include_router(investigation_router)
+app.include_router(recovery_router)
+app.include_router(discord_recovery_router)
+app.include_router(support_router)
+app.include_router(operations_router)
 
 
 @app.get("/")
@@ -258,10 +268,23 @@ def create_order(payload: OrderCreateIn, db: Session = Depends(get_db)):
                 )
                 VALUES (
                     :incident_id, 'discord', 'pending',
-                    CAST(:incident_id AS TEXT) || ':incident.created'
+                    CAST(:incident_id AS TEXT) || chr(58) || 'incident.created'
                 )
                 ON CONFLICT (dedupe_key) DO NOTHING
             """), {"incident_id": incident_id})
+
+            # Durable GhostTrail job: investigation starts after the incident
+            # transaction commits, without requiring a browser to be opened.
+            db.execute(text("""
+                INSERT INTO ghosttrail_investigation_jobs (
+                    incident_id, customer_session, status
+                )
+                VALUES (:incident_id, :customer_session, 'pending')
+                ON CONFLICT (incident_id) DO NOTHING
+            """), {
+                "incident_id": incident_id,
+                "customer_session": payload.customer_session,
+            })
 
             db.execute(text("""
                 INSERT INTO audit_log (

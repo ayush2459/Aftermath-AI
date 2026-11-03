@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 700" role="img" aria-labelledby="title desc">
+<title id="title">Aurora wireless headphones</title><desc id="desc">Premium black over-ear wireless headphones with luminous cyan accent rings on a dark navy studio background.</desc>
+<defs>
+ <radialGradient id="bg"><stop stop-color="#24364e"/><stop offset="1" stop-color="#0c1423"/></radialGradient>
+ <radialGradient id="glow"><stop stop-color="#a4ff42" stop-opacity=".34"/><stop offset="1" stop-color="#a4ff42" stop-opacity="0"/></radialGradient>
+ <linearGradient id="band" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#77879a"/><stop offset=".22" stop-color="#111b29"/><stop offset=".55" stop-color="#02060d"/><stop offset=".8" stop-color="#526174"/><stop offset="1" stop-color="#080d15"/></linearGradient>
+ <linearGradient id="cup" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#465568"/><stop offset=".25" stop-color="#111a28"/><stop offset=".65" stop-color="#03070e"/><stop offset="1" stop-color="#34465c"/></linearGradient>
+ <linearGradient id="cyan"><stop stop-color="#4cf7ff"/><stop offset=".5" stop-color="#b7ffff"/><stop offset="1" stop-color="#2b9dce"/></linearGradient>
+ <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="24"/></filter>
+ <filter id="soft"><feGaussianBlur stdDeviation="5"/></filter>
+</defs>
+<rect width="900" height="700" rx="30" fill="url(#bg)"/><ellipse cx="465" cy="325" rx="330" ry="300" fill="url(#glow)"/>
+<g fill="none" stroke="#9cff43" stroke-opacity=".22" stroke-width="2"><ellipse cx="460" cy="315" rx="340" ry="235" transform="rotate(-24 460 315)"/><ellipse cx="460" cy="315" rx="300" ry="255" transform="rotate(26 460 315)"/></g>
+<ellipse cx="465" cy="590" rx="260" ry="38" fill="#000" opacity=".7" filter="url(#shadow)"/>
+<!-- headband -->
+<path d="M238 393 C205 195 291 73 451 62 C620 51 706 177 674 393" fill="none" stroke="#050910" stroke-width="94" stroke-linecap="round"/>
+<path d="M238 393 C205 195 291 73 451 62 C620 51 706 177 674 393" fill="none" stroke="url(#band)" stroke-width="77" stroke-linecap="round"/>
+<path d="M258 352 C244 190 318 104 452 96 C579 88 657 185 652 347" fill="none" stroke="#9baabc" stroke-opacity=".32" stroke-width="5" stroke-linecap="round"/>
+<path d="M279 390 L270 455 M633 390 L646 455" stroke="#8495a9" stroke-width="20" stroke-linecap="round"/>
+<!-- left ear cup -->
+<g transform="rotate(-12 300 465)">
+ <rect x="207" y="322" width="188" height="294" rx="86" fill="#02050a" stroke="#627287" stroke-width="8"/>
+ <rect x="220" y="336" width="162" height="266" rx="76" fill="url(#cup)" stroke="#1b2b3f" stroke-width="8"/>
+ <rect x="239" y="355" width="125" height="228" rx="62" fill="#03070e" stroke="#526276" stroke-width="10"/>
+ <path d="M247 382 Q226 466 250 550" fill="none" stroke="#9eafc1" stroke-opacity=".25" stroke-width="8" stroke-linecap="round"/>
+</g>
+<!-- right ear cup with luminous rim -->
+<g transform="rotate(11 600 465)">
+ <rect x="503" y="318" width="198" height="302" rx="88" fill="#02050a" stroke="#718197" stroke-width="8"/>
+ <rect x="516" y="332" width="172" height="274" rx="78" fill="url(#cup)" stroke="#25374c" stroke-width="8"/>
+ <rect x="536" y="351" width="132" height="235" rx="64" fill="#050a13" stroke="url(#cyan)" stroke-width="8"/>
+ <rect x="548" y="364" width="108" height="210" rx="54" fill="#111b29" stroke="#05080d" stroke-width="8"/>
+ <path d="M553 382 Q530 467 557 552" fill="none" stroke="#b9ffff" stroke-opacity=".75" stroke-width="5" filter="url(#soft)"/>
+ <path d="M590 448 l37 -23 -13 44 -8 -14 -16 13z" fill="#55eaff"/>
+</g>
+<!-- highlights -->
+<path d="M297 157 C340 94 421 74 477 86" fill="none" stroke="#d7e5f3" stroke-opacity=".55" stroke-width="7" stroke-linecap="round"/>
+<path d="M648 203 Q690 276 668 343" fill="none" stroke="#c5d5e7" stroke-opacity=".28" stroke-width="6" stroke-linecap="round"/>
+<g font-family="Arial,sans-serif" fill="#b8c5d5" font-size="13" letter-spacing="4"><text x="40" y="654">AURORA / WIRELESS AUDIO</text><text x="755" y="654">01 — 05</text></g>
+</svg>

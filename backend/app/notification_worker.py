@@ -10,13 +10,17 @@ from sqlalchemy import text
 
 from .db import SessionLocal
 from .notifications import dispatch_discord_alert
+from .ghosttrail_worker import run_once as run_ghosttrail_once
 
 logger = logging.getLogger("aftermath.notification_worker")
-POLL_SECONDS = 30
+POLL_SECONDS = 5
 BATCH_SIZE = 25
 
 
 def run_once():
+    # Run durable investigations first; completed jobs enqueue their Discord
+    # handoff into the same outbox drained below.
+    ghosttrail_scanned, _ghosttrail_completed = run_ghosttrail_once()
     db = SessionLocal()
     try:
         rows = db.execute(text("""
@@ -46,7 +50,7 @@ def run_once():
             notification_key = row["dedupe_key"].split(":", 1)[1]
             if dispatch_discord_alert(db, row["incident_id"], notification_key):
                 delivered += 1
-        return len(rows), delivered
+        return len(rows) + ghosttrail_scanned, delivered
     finally:
         db.close()
 
@@ -61,7 +65,7 @@ def main():
         try:
             scanned, delivered = run_once()
             if scanned:
-                logger.info("Scanned %s notifications; delivered %s", scanned, delivered)
+                logger.info("Processed %s background items; delivered %s Discord notifications", scanned, delivered)
         except Exception:
             logger.exception("Notification worker iteration failed")
         time.sleep(POLL_SECONDS)

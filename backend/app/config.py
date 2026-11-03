@@ -31,6 +31,14 @@ RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
 
 # Discord secrets stay server-side. Prefer bot API; webhook remains supported as fallback.
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "").strip()
-DISCORD_CHANNEL_ID = os.getenv("DISCORD_CHANNEL_ID", "").strip()
+DISCORD_CHANNEL_ID = (os.getenv("DISCORD_RECOVERY_CHANNEL_ID", "").strip() or os.getenv("DISCORD_CHANNEL_ID", "").strip())
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "").strip()
 DISCORD_ALERT_TIMEOUT = float(os.getenv("DISCORD_ALERT_TIMEOUT", "8"))
+
+# Switch-hosted Discord recovery agent. This shared secret is used only between
+# the backend and the separately running Switch agent client.
+DISCORD_RECOVERY_AGENT_KEY = os.getenv("DISCORD_RECOVERY_AGENT_KEY", "").strip()
+DISCORD_SUPPORT_INVITE_URL = os.getenv(
+    "DISCORD_SUPPORT_INVITE_URL", "https://discord.gg/6sCDwusbw"
+).strip()
+PUBLIC_FRONTEND_URL = os.getenv("PUBLIC_FRONTEND_URL", "http://localhost:5176").rstrip("/")

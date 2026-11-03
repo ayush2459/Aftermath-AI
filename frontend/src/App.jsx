@@ -1,13 +1,15 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { sampleJourneyStage, sampleTrackingNumber, shouldOpenSampleJourney, shouldShowSampleResolution } from "./demoTracking";
+import GhostTrail from "./GhostTrail.jsx";
+import OperationsDashboard from "./Operations.jsx";
+import { buildCustomerJourney } from "./shipmentJourney.js";
 import {
   ArrowRight,
   Check,
   CircleHelp,
   Headphones,
   LockKeyhole,
-  MessageCircle,
   Minus,
   Plus,
   ShieldCheck,
@@ -24,6 +26,8 @@ const API = (
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"
 ).replace(/\/$/, "");
 
+const HEADPHONES_IMAGE = "https://images.unsplash.com/photo-1520170350707-b2da59970118?auto=format&fit=crop&w=1200&q=85";
+
 const money = (paise) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -32,10 +36,9 @@ const money = (paise) =>
   }).format((paise || 0) / 100);
 
 const productImage = (product) => {
-  const path =
-    product.product_id === "aurora-headphones"
-      ? "/static/products/aurora-headphones.jpg"
-      : product.image_url || "";
+  if (product.product_id === "aurora-headphones") return HEADPHONES_IMAGE;
+
+  const path = product.image_url || "";
 
   const isAbsolute =
     path.startsWith("http://") || path.startsWith("https://");
@@ -72,6 +75,7 @@ const demoSteps = [
   { title: "Out for delivery", description: "The illustrated parcel is dispatched for final delivery." },
   { title: "Delivered", description: "The illustrated delivery is complete." }
 ];
+
 
 function DemoShipmentCard({ shipment, now, startedAt, onRestart }) {
   const stage = sampleJourneyStage(startedAt, now, demoSteps.length);
@@ -163,16 +167,6 @@ function DemoShipmentCard({ shipment, now, startedAt, onRestart }) {
         <p>The demo journey is complete. The recorded test incident remains unchanged.</p>
       </div>
 
-      <div className="discord-help-card">
-        <div className="discord-help-icon"><MessageCircle size={21} /></div>
-        <div className="discord-help-copy">
-          <span className="eyebrow">NEED HELP WITH THIS SHIPMENT?</span>
-          <b>Ask our Aftermath AI bot for shipment information and support.</b>
-        </div>
-        <a className="discord-help-button" href="https://discord.gg/6sCDwusbw" target="_blank" rel="noopener noreferrer">
-          Open Aftermath AI on Discord <ArrowRight size={15} />
-        </a>
-      </div>
       </>}
     </article>
   );
@@ -187,6 +181,7 @@ function App() {
   const [notice, setNotice] = useState(null);
   const [result, setResult] = useState(null);
 
+  const shareToken = new URLSearchParams(window.location.search).get("share") || "";
   const [customerSession] = useState(() => {
     const key = "aftermath_customer_session";
     let value = localStorage.getItem(key);
@@ -200,8 +195,10 @@ function App() {
   });
 
   // Shipment dashboard state
+  // Start a fresh shipment dashboard history for this release.
+  // Older business records remain in the database; only this dashboard view is cleared.
   const [dashboardClearCutoff] = useState(() => {
-    const key = "aftermath_dashboard_orders_cleared_at";
+    const key = "aftermath_dashboard_orders_cleared_at_v4";
     let cutoff = localStorage.getItem(key);
     if (!cutoff) {
       cutoff = new Date().toISOString();
@@ -229,6 +226,10 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     return params.get("view") === "sample" ? params.get("order") : null;
   });
+  const [recoveredViewOrderId] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("view") === "recovered" ? params.get("order") : null;
+  });
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [recoveryMessage, setRecoveryMessage] = useState("");
   const [recoveryComplete, setRecoveryComplete] = useState(false);
@@ -243,8 +244,11 @@ function App() {
     setShipmentError("");
 
     try {
+      const accessQuery = shareToken
+        ? `share_token=${encodeURIComponent(shareToken)}`
+        : `customer_session=${encodeURIComponent(customerSession)}`;
       const response = await fetch(
-        `${API}/api/agent-tools/list_shipments?customer_session=${encodeURIComponent(customerSession)}`
+        `${API}/api/agent-tools/list_shipments?${accessQuery}`
       );
 
       if (!response.ok) {
@@ -253,6 +257,10 @@ function App() {
 
       const data = await response.json();
       const records = visibleDashboardOrders(data.shipments || []);
+      if (recoveredViewOrderId) {
+        const linkedOrder = (data.shipments || []).find((item) => item.order_id === recoveredViewOrderId);
+        if (linkedOrder && !records.some((item) => item.order_id === recoveredViewOrderId)) records.push(linkedOrder);
+      }
 
       setShipments(records);
 
@@ -270,7 +278,7 @@ function App() {
             const timelineResponse = await fetch(
               `${API}/api/agent-tools/get_shipment_timeline?order_id=${encodeURIComponent(
                 shipment.order_id
-              )}&customer_session=${encodeURIComponent(customerSession)}`
+              )}&${accessQuery}`
             );
 
             if (!timelineResponse.ok) {
@@ -315,7 +323,7 @@ function App() {
 
   useEffect(() => {
     if (isShipmentPage) refreshShipments();
-  }, [isShipmentPage]);
+  }, [isShipmentPage, shareToken]);
 
   useEffect(() => {
     if (!isShipmentPage) return undefined;
@@ -328,10 +336,39 @@ function App() {
     let active = true;
     const timer = window.setInterval(async () => {
       try {
-        const response = await fetch(`${API}/api/agent-tools/list_shipments?customer_session=${encodeURIComponent(customerSession)}`);
+        const accessQuery = shareToken
+          ? `share_token=${encodeURIComponent(shareToken)}`
+          : `customer_session=${encodeURIComponent(customerSession)}`;
+        const response = await fetch(`${API}/api/agent-tools/list_shipments?${accessQuery}`);
         if (response.ok && active) {
           const data = await response.json();
-          if (active) setShipments(visibleDashboardOrders(data.shipments || []));
+          const records = visibleDashboardOrders(data.shipments || []);
+          if (recoveredViewOrderId) {
+            const linkedOrder = (data.shipments || []).find((item) => item.order_id === recoveredViewOrderId);
+            if (linkedOrder && !records.some((item) => item.order_id === recoveredViewOrderId)) records.push(linkedOrder);
+          }
+          if (active) setShipments(records);
+          // Refresh persisted event history on the same five-second cadence so
+          // new carrier scans and recovery events appear without a manual reload.
+          const timelineResults = await Promise.all(records.map(async (shipment) => {
+            try {
+              const timelineResponse = await fetch(
+                `${API}/api/agent-tools/get_shipment_timeline?order_id=${encodeURIComponent(shipment.order_id)}&${accessQuery}`
+              );
+              if (!timelineResponse.ok) return null;
+              const timeline = await timelineResponse.json();
+              return [shipment.order_id, timeline.events || []];
+            } catch {
+              return null;
+            }
+          }));
+          if (active) {
+            setTimelines((previous) => {
+              const next = { ...previous };
+              timelineResults.filter(Boolean).forEach(([orderId, events]) => { next[orderId] = events; });
+              return next;
+            });
+          }
         }
       } catch {
         // Keep the last known view until the next refresh.
@@ -341,7 +378,7 @@ function App() {
       active = false;
       window.clearInterval(timer);
     };
-  }, [isShipmentPage]);
+  }, [isShipmentPage, shareToken]);
 
   const restartDemo = (orderId) => {
     const started = Date.now();
@@ -653,38 +690,13 @@ function App() {
   // Build a workflow view from the known demo incident.
   // These are explanatory stages, not independently recorded events.
   const getRecoveryStages = (shipment) => {
-    const failed =
-      shipment.shipment_status === "failed" ||
-      shipment.order_status === "recovery_required";
-
+    const restored = shipment.discord_recovery_status === "completed";
+    const failed = shipment.shipment_status === "failed" || shipment.order_status === "recovery_required";
     return [
-      {
-        title: "Payment verification",
-        description:
-          "Payment verification is handled by the backend.",
-        status: "completed"
-      },
-      {
-        title: "Carrier allocation",
-        description: failed
-          ? "Carrier allocation request timed out."
-          : "Carrier allocation status depends on shipment data.",
-        status: failed ? "failed" : "pending"
-      },
-      {
-        title: "Shipment creation",
-        description: failed
-          ? "Shipment was not created after the allocation failure."
-          : "Shipment creation status is not confirmed here.",
-        status: failed ? "blocked" : "pending"
-      },
-      {
-        title: "Recovery investigation",
-        description: failed
-          ? "Incident requires investigation and resolution."
-          : "No active recovery requirement is confirmed.",
-        status: failed ? "attention" : "pending"
-      }
+      { title: "Payment verification", description: "Payment verification is handled by the backend.", status: "completed" },
+      { title: "Carrier allocation", description: restored ? "Simulated carrier allocation completed by Discord recovery." : failed ? "Carrier allocation request timed out." : "Carrier allocation status depends on shipment data.", status: restored ? "completed" : failed ? "failed" : "pending" },
+      { title: "GhostTrail investigation and approval", description: restored ? "GhostTrail diagnosis and approved recovery plan were handed to Discord." : failed ? "Incident requires investigation and an approved recovery plan." : "No active recovery requirement is confirmed.", status: restored ? "completed" : failed ? "attention" : "pending" },
+      { title: "Recovery verification", description: restored ? "Backend order, shipment and incident records were re-read and verified." : "Awaiting an approved recovery action.", status: restored ? "completed" : "pending" }
     ];
   };
 
@@ -718,15 +730,21 @@ function App() {
   };
 
   const matchingShipments = shipments.filter((shipment) => {
+    if (recoveredViewOrderId) return shipment.order_id === recoveredViewOrderId;
     const query = trackingQuery.trim().toLowerCase();
     if (!query) return true;
 
+    // A supplied order reference or tracking number selects one exact order.
+    // Avoid partial matches that can surface unrelated historical orders.
     return [
       shipment.order_id,
       shipment.tracking_number,
       sampleTrackingNumber(shipment)
-    ].some((value) => value?.toLowerCase().includes(query));
+    ].some((value) => value && String(value).toLowerCase() === query);
   });
+
+  if (window.location.pathname.replace(/\/+$/, "") === "/operations") return <OperationsDashboard />;
+  if (window.location.pathname.replace(/\/+$/, "") === "/investigation") return <GhostTrail />;
 
   return (
     <div className={`app-shell ${isShipmentPage ? "shipment-page" : "storefront-page"}`} >
@@ -750,6 +768,7 @@ function App() {
         <nav>
           <a className={!isShipmentPage ? "active" : ""} href="/">Shop</a>
           <a className={isShipmentPage ? "active" : ""} href="/shipments">Shipment Monitoring</a>
+          <a href="/investigation">GhostTrail AI</a>
           {!isShipmentPage && <a href="#story">How it works</a>}
           {!isShipmentPage && <a href="#support">Support</a>}
         </nav>
@@ -802,8 +821,15 @@ function App() {
 
             <div className="hero-product">
               <img
-                src={`${API}/static/products/aurora-headphones.jpg?v=20261031-1`}
+                src={HEADPHONES_IMAGE}
                 alt="Aurora wireless headphones"
+                loading="eager"
+                decoding="async"
+                onError={(event) => {
+                  const image = event.currentTarget;
+                  image.onerror = null;
+                  image.src = "/images/aurora-headphones.svg";
+                }}
               />
             </div>
 
@@ -893,6 +919,17 @@ function App() {
                     <img
                       src={productImage(product)}
                       alt={product.name}
+                      loading="eager"
+                      decoding="async"
+                      onError={(event) => {
+                        const image = event.currentTarget;
+                        image.onerror = null;
+                        if (product.product_id === "aurora-headphones") {
+                          image.src = "/images/aurora-headphones.svg";
+                        } else {
+                          image.style.visibility = "hidden";
+                        }
+                      }}
                     />
 
                     <span className="image-label">
@@ -985,6 +1022,9 @@ function App() {
             />
           </label>
 
+          {recoveredViewOrderId && (
+            <div className="sample-recovery-prompt" role="status"><div><b>{shareToken ? "Discord recovery verified" : "Recovered order view"}</b><p>Order {recoveredViewOrderId}. The order and simulated shipment records are restored. This is not a real carrier shipment or proof of delivery.</p></div><button type="button" onClick={refreshShipments} disabled={shipmentsLoading}>Refresh order</button></div>
+          )}
           {recoveryOrderId && !recoveryComplete && (
             <div className="sample-recovery-prompt" role="note">
               <div>
@@ -1046,6 +1086,11 @@ function App() {
                 const isDemoFailure = shipment.last_error?.startsWith(
                   "Seeded demo failure:"
                 );
+                const ghosttrailRecovered = shipment.ghosttrail_recovery_status === "completed";
+                const discordRecovered = shipment.discord_recovery_status === "completed";
+                const recoveryRecorded = ghosttrailRecovered || discordRecovered;
+                const journeySteps = buildCustomerJourney(shipment, events);
+                const completedMilestones = journeySteps.filter((step) => step.done).length;
 
                 return (
                   <article
@@ -1062,16 +1107,54 @@ function App() {
                         <h3>{shipment.order_id}</h3>
                       </div>
 
-                      <span
-                        className={`shipment-status ${
-                          shipment.shipment_status || "unknown"
-                        }`}
-                      >
-                        {readable(shipment.shipment_status)}
+                      <span className={`shipment-status ${recoveryRecorded ? "demo-status" : shipment.shipment_status || "unknown"}`}>
+                        {recoveryRecorded ? "Recovered (simulation)" : readable(shipment.shipment_status)}
                       </span>
                     </div>
 
-                    {isDemoFailure && (
+                    {discordRecovered && (
+                      <div className="shipment-demo-note discord-restored-note" role="status"><b>Recovery completed · Backend state verified</b><p>The order is restored, the simulated shipment record is created, and the incident is resolved. The tracking reference is illustrative; no real carrier or parcel was involved.</p></div>
+                    )}
+                    <section className="customer-delivery-progress" aria-label="Delivery progress">
+                      <div className="customer-delivery-heading">
+                        <div>
+                          <span className="eyebrow">ORDER JOURNEY</span>
+                          <h4>Delivery progress</h4>
+                          <p>Milestones are completed only when supported by recorded order, shipment or carrier events. Future stages remain pending until evidence arrives.</p>
+                        </div>
+                        <span className="customer-progress-count">{completedMilestones} / {journeySteps.length} COMPLETED</span>
+                      </div>
+                      <div className="customer-delivery-list">
+                        {journeySteps.map((step, index) => (
+                          <div className={`customer-delivery-step is-${step.state}`} key={step.title}>
+                            <div className="customer-delivery-rail">
+                              <span className="customer-delivery-marker">
+                                {step.done ? <Check size={13} /> : step.failed ? <AlertTriangle size={12} /> : step.number}
+                              </span>
+                              {index < journeySteps.length - 1 && <span className="customer-delivery-line" />}
+                            </div>
+                            <div className="customer-delivery-copy">
+                              <div className="customer-delivery-title">
+                                <b>{step.title}</b>
+                                <span>{step.failed ? "Issue detected" : step.done ? "Completed" : "Upcoming"}</span>
+                              </div>
+                              <p>{step.detail}</p>
+                              {step.time && <time>{formatDate(step.time)}</time>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="customer-delivery-disclaimer">
+                        {shipment.carrier_code === "AFTERMATH-DEMO"
+                          ? "Simulation only: the restored shipment record is not a carrier booking. Pickup, transit, out-for-delivery and delivery stay pending until a verified carrier integration reports those events."
+                          : "Live status is based on persisted provider events. Pending milestones are not inferred or presented as completed."}
+                        Updates are checked automatically every five seconds.
+                      </div>
+                    </section>
+                    {ghosttrailRecovered && !discordRecovered && (
+                      <div className="shipment-demo-note" role="note"><b>Legacy sample recovery recorded · Simulation only</b><p>This older sample journey does not restore a carrier shipment. Review the recovery details in GhostTrail AI.</p></div>
+                    )}
+                    {isDemoFailure && !ghosttrailRecovered && (
                       <div className="shipment-demo-note" role="note">
                         <b>Test order · No parcel will be shipped</b>
                         <p>
@@ -1156,8 +1239,9 @@ function App() {
 
                       <div>
                         <b>
-                          {shipment.incident_title ||
-                            "No incident recorded"}
+                          {discordRecovered
+                            ? "Original shipment issue · resolved"
+                            : shipment.incident_title || "No incident recorded"}
                         </b>
 
                         <p>
@@ -1320,25 +1404,24 @@ function App() {
                       )}
                     </div>
 
-                    <div className="discord-help-card">
-                      <div className="discord-help-icon">
-                        <MessageCircle size={21} />
+                    {isDemoFailure && !recoveryRecorded && (
+                      <div className="ghosttrail-help-card">
+                        <div className="ghosttrail-help-icon">
+                          <Sparkles size={21} />
+                        </div>
+                        <div className="ghosttrail-help-copy">
+                          <span className="eyebrow">SHIPMENT RECOVERY</span>
+                          <b>Investigate and recover with GhostTrail AI.</b>
+                          <p>Review the evidence, understand the root cause and approve a recovery plan for this exact order.</p>
+                        </div>
+                        <a
+                          className="ghosttrail-primary-link"
+                          href={`/investigation?order=${encodeURIComponent(shipment.order_id)}`}
+                        >
+                          Open GhostTrail AI <Sparkles size={15} />
+                        </a>
                       </div>
-                      <div className="discord-help-copy">
-                        <span className="eyebrow">QUESTIONS ABOUT THIS STATUS?</span>
-                        <b>Ask our Aftermath AI bot to explain it.</b>
-                        <p>Include the order reference above when asking for help with this test shipment.</p>
-                      </div>
-                      <a
-                        className="discord-help-button"
-                        href="https://discord.gg/6sCDwusbw"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Open Aftermath AI on Discord
-                        <ArrowRight size={15} />
-                      </a>
-                    </div>
+                    )}
 
                     <div className="shipment-footer">
                       <span>
@@ -1348,17 +1431,20 @@ function App() {
                       </span>
 
                       <span className="tracking-reference">
-                        <b>{shipment.tracking_number
-                          ? "Carrier tracking number"
-                          : isDemoFailure
-                            ? "Demo tracking number"
-                            : "Tracking number"}</b>
+                        <b>{shipment.carrier_code === "AFTERMATH-DEMO"
+                          ? "SIMULATED TRACKING REFERENCE"
+                          : shipment.tracking_number
+                            ? "Carrier tracking number"
+                            : isDemoFailure
+                              ? "Demo tracking number"
+                              : "Tracking number"}</b>
                         <span>{shipment.tracking_number ||
                           sampleTrackingNumber(shipment) ||
                           "Unavailable until a carrier is assigned"}</span>
-                        {isDemoFailure && (
-                          <small>Demo only. This number cannot track a real parcel.</small>
+                        {(isDemoFailure || shipment.carrier_code === "AFTERMATH-DEMO") && (
+                          <small>Demo only. This reference cannot track a real parcel.</small>
                         )}
+
                       </span>
                     </div>
                   </article>

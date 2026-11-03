@@ -81,6 +81,26 @@ CREATE TABLE IF NOT EXISTS notification_deliveries (
 CREATE INDEX IF NOT EXISTS idx_notification_deliveries_status
  ON notification_deliveries(status, updated_at);
 
+ALTER TABLE notification_deliveries
+    ADD COLUMN IF NOT EXISTS payload JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE TABLE IF NOT EXISTS ghosttrail_investigation_jobs (
+    job_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    incident_id UUID NOT NULL UNIQUE REFERENCES incidents(incident_id) ON DELETE CASCADE,
+    customer_session TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending','processing','completed','failed')),
+    attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+    last_error TEXT,
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ghosttrail_jobs_due
+    ON ghosttrail_investigation_jobs(status, next_attempt_at, created_at);
+
 CREATE TABLE IF NOT EXISTS recovery_actions (
  action_id UUID PRIMARY KEY DEFAULT gen_random_uuid(), incident_id UUID NOT NULL REFERENCES incidents(incident_id),
  plan_id UUID REFERENCES recovery_plans(plan_id), action_type TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
@@ -105,7 +125,7 @@ INSERT INTO products(product_id,name,description,price_paise,currency,stock_quan
 ('nova-speaker','Nova Bluetooth Speaker','Portable Bluetooth speaker with rich sound.',229900,'INR',30,'/static/products/nova-speaker.jpg',TRUE),
 ('orbit-keyboard','Orbit Mechanical Keyboard','Mechanical keyboard with RGB backlighting.',599900,'INR',15,'/static/products/orbit-keyboard.jpg',TRUE),
 ('echo-desk-lamp','Echo Desk Lamp','Adjustable LED desk lamp for workspaces.',179900,'INR',18,'/static/products/echo-desk-lamp.jpg',TRUE)
-ON CONFLICT(product_id) DO UPDATE SET name=EXCLUDED.name, description=EXCLUDED.description, price_paise=EXCLUDED.price_paise, currency=EXCLUDED.currency, image_url=EXCLUDED.image_url, is_active=EXCLUDED.is_active;
+ON CONFLICT(product_id) DO UPDATE SET name=EXCLUDED.name, description=EXCLUDED.description, price_paise=EXCLUDED.price_paise, currency=EXCLUDED.currency, stock_quantity=GREATEST(products.stock_quantity, EXCLUDED.stock_quantity), image_url=EXCLUDED.image_url, is_active=EXCLUDED.is_active;
 
 DO $$ DECLARE t TEXT; BEGIN
  FOREACH t IN ARRAY ARRAY['products','orders','payments','inventory_reservations','shipments','incidents','recovery_plans','recovery_actions'] LOOP
@@ -113,3 +133,52 @@ DO $$ DECLARE t TEXT; BEGIN
   EXECUTE format('CREATE TRIGGER trg_%I_updated_at BEFORE UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION set_updated_at()', t, t);
  END LOOP;
 END $$;
+
+-- Phase 3: GhostTrail-to-Discord simulated recovery handoff and read-only share links.
+CREATE TABLE IF NOT EXISTS discord_recovery_handoffs (
+ handoff_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+ incident_id UUID NOT NULL REFERENCES incidents(incident_id) ON DELETE CASCADE,
+ plan_id UUID NOT NULL REFERENCES recovery_plans(plan_id) ON DELETE CASCADE,
+ order_id UUID NOT NULL REFERENCES orders(order_id) ON DELETE CASCADE,
+ code_hash TEXT NOT NULL UNIQUE,
+ expires_at TIMESTAMPTZ NOT NULL,
+ previewed_at TIMESTAMPTZ,
+ consumed_at TIMESTAMPTZ,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_discord_recovery_handoffs_order
+ ON discord_recovery_handoffs(order_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_discord_recovery_handoffs_expiry
+ ON discord_recovery_handoffs(expires_at) WHERE consumed_at IS NULL;
+CREATE TABLE IF NOT EXISTS shipment_share_tokens (
+ token_hash TEXT PRIMARY KEY,
+ order_id UUID NOT NULL REFERENCES orders(order_id) ON DELETE CASCADE,
+ plan_id UUID NOT NULL REFERENCES recovery_plans(plan_id) ON DELETE CASCADE,
+ expires_at TIMESTAMPTZ NOT NULL,
+ revoked_at TIMESTAMPTZ,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_shipment_share_tokens_order
+ ON shipment_share_tokens(order_id, expires_at DESC);
+
+
+-- Phase 4: unified customer-support intake and issue routing.
+CREATE TABLE IF NOT EXISTS support_cases (
+    case_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source TEXT NOT NULL DEFAULT 'switch_room',
+    room_id_hash TEXT NOT NULL,
+    source_event_id TEXT,
+    category TEXT NOT NULL CHECK (category IN ('shipment_recovery','payment_support','account_support','software_bug','general_support')),
+    status TEXT NOT NULL DEFAULT 'triaged' CHECK (status IN ('triaged','investigating','awaiting_customer','resolved','escalated')),
+    customer_message TEXT NOT NULL,
+    page_url TEXT,
+    resolution_summary TEXT,
+    customer_url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (source, room_id_hash, source_event_id)
+);
+CREATE INDEX IF NOT EXISTS idx_support_cases_status_created ON support_cases(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_support_cases_category_created ON support_cases(category, created_at DESC);
+DROP TRIGGER IF EXISTS trg_support_cases_updated_at ON support_cases;
+CREATE TRIGGER trg_support_cases_updated_at BEFORE UPDATE ON support_cases FOR EACH ROW EXECUTE FUNCTION set_updated_at();

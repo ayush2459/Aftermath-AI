@@ -6,10 +6,13 @@ on:
       - main
       - phase-1/reliability-security
       - phase-2/discord-operations
+      - phase-3/ai-investigation-recovery
   pull_request:
     branches:
       - main
       - phase-1/reliability-security
+      - phase-2/discord-operations
+      - phase-3/ai-investigation-recovery
 
 permissions:
   contents: read

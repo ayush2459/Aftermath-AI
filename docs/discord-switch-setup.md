@@ -37,7 +37,9 @@ At this point Discord is connected to Switch. The order-status agent is not yet 
 
 ## Next milestone: Switch → Aftermath backend
 
-Register an Aftermath support agent with Switch's [custom agent protocol](https://docs.switchagents.ai/switch-rooms/internals/agent-protocol), invite it to the Discord-backed room, and run its WebSocket client. The client will act only on messages Switch marks `addressed`, call a read-only backend order-status tool, and post the answer through Switch. Require proof that the requester owns the order before exposing order details. The backend remains the source of truth for payment, fulfillment, and incident status.
+The implemented simulated recovery agent now receives GhostTrail-approved recovery cases through a short-lived case code. It acts only on messages Switch marks `addressed`, retrieves the saved diagnosis and approved plan, asks for explicit confirmation, executes the deterministic simulation through an agent-authenticated backend endpoint, verifies the committed order/shipment/incident state, and posts the corrected read-only shipment URL through Switch.
+
+Follow [the Discord recovery agent setup guide](./discord-recovery-agent-setup.md) to apply the migration, configure secrets, register the Switch agent, run the WebSocket client, and test the end-to-end workflow. The Aftermath backend remains the source of truth. No real carrier or fulfillment side effect is performed in this simulation.
 
 ## Troubleshooting
 
