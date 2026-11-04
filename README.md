@@ -9,6 +9,7 @@
   <img src="https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi" />
   <img src="https://img.shields.io/badge/Frontend-React-61DAFB?style=for-the-badge&logo=react" />
   <img src="https://img.shields.io/badge/Database-PostgreSQL-4169E1?style=for-the-badge&logo=postgresql" />
+  <img src="https://img.shields.io/badge/AI%20Development-Switch%20%2B%20Codex-5865F2?style=for-the-badge" />
 </p>
 
 <p align="center">
@@ -17,7 +18,8 @@
   <a href="#-how-it-works">Workflow</a> •
   <a href="#-platform-features">Features</a> •
   <a href="#-architecture">Architecture</a> •
-  <a href="#-getting-started">Setup</a>
+  <a href="#-switch-powered-ai-development-workflow">Switch Integration</a> •
+  <a href="#-getting-started">Setup</a>  
 </p>
 
 ---
@@ -211,6 +213,76 @@ flowchart TB
 | Version Control | Git, GitHub |
 
 ---
+
+---
+
+## 🔗 Switch-Powered AI Development Workflow
+
+Alongside its commerce resilience capabilities, Aftermath AI also demonstrates an AI-powered software development workflow using **Switch, Discord, and OpenAI Codex**.
+
+This integration connects a developer's team communication channel directly to a coding agent, allowing repository tasks to be assigned, implemented, tested, and delivered to GitHub through a conversational workflow.
+
+### How the Integration Works
+
+1. A developer sends an engineering task in the connected Discord channel and mentions the Codex agent.
+2. The local Switch server receives the Discord message and routes it to Codex.
+3. Codex accesses the connected Aftermath AI GitHub repository and understands the requested task.
+4. Codex inspects the existing codebase and implements the required changes.
+5. Codex executes relevant tests to validate its modifications.
+6. The configured workflow automatically pushes the resulting changes to GitHub.
+7. The agent responds through the connected workflow, allowing developers to review the result and provide follow-up instructions.
+
+### Architecture
+
+```mermaid
+flowchart LR
+    A["Developer"] -->|"Task / Instructions"| B["Discord"]
+    B <-->|"Connected Communication"| C["Local Switch Server"]
+    C <-->|"Agent Routing"| D["Codex Agent"]
+    D -->|"Inspect / Modify"| E["Aftermath AI Repository"]
+    D -->|"Execute"| F["Test Suite"]
+    D -->|"Automatic Git Push"| G["GitHub"]
+    D -->|"Response"| C
+    C --> B
+    G -->|"Human Review"| A
+```
+
+### Integration Components
+
+| Component | Responsibility |
+|---|---|
+| Discord | Developer communication and task assignment |
+| Switch | Connects Discord with the coding agent |
+| OpenAI Codex | Code analysis, implementation, testing, and Git operations |
+| Aftermath AI Repository | Target codebase for development tasks |
+| GitHub | Automatic delivery and version control |
+
+### Current Capabilities
+
+- Discord integration through a locally running Switch server.
+- One connected Codex coding agent.
+- Natural-language engineering task assignment.
+- Repository inspection and code modification.
+- Automated test execution through Codex.
+- Automatic GitHub push after code changes.
+- Conversational responses and developer follow-up.
+
+### Development Workflow Safety
+
+- Development changes are maintained on the designated project branch.
+- Code changes should be reviewed before acceptance.
+- Test results are reported based on actual execution.
+- Credentials and authentication tokens remain in local secure configuration.
+- Automatic GitHub delivery does not imply automatic merging or production deployment.
+
+### Why This Matters
+
+This integration demonstrates how AI agents can become part of an existing software engineering workflow rather than functioning only as standalone coding assistants.
+
+By connecting Discord, Switch, Codex, and GitHub, developers can move from a task discussed in chat to actual repository changes and test execution while retaining human direction and review.
+
+**This is a developer productivity workflow built around the Aftermath AI repository. It is separate from the commerce incident investigation and recovery workflow described above.**
+
 
 ## 🛡️ Reliability by Design
 
